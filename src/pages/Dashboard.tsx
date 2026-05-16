@@ -1,4 +1,4 @@
-import DashboardView from "@/features/dashboard/views/DashboardView";
+import DashboardView from "@/features/comercializadora/views/DashboardView";
 
 export default function DashboardPage() {
   return <DashboardView />;

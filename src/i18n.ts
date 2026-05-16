@@ -22,7 +22,9 @@ const obtenerIdiomaInicial = (): SupportedLanguage => {
         ? window.localStorage.getItem(APP_CONFIG.LANGUAGE_STORAGE_KEY)
         : null;
 
-    return idiomaGuardado === "es" ? "es" : APP_CONFIG.DEFAULT_LANGUAGE;
+    return idiomaGuardado === "en" || idiomaGuardado === "es"
+      ? idiomaGuardado
+      : APP_CONFIG.DEFAULT_LANGUAGE;
   } catch {
     return APP_CONFIG.DEFAULT_LANGUAGE;
   }
@@ -35,35 +37,20 @@ void i18n
     resources,
     defaultNS: "common",
     lng: obtenerIdiomaInicial(),
-
-    // Idioma de respaldo si no se detecta uno válido
     fallbackLng: APP_CONFIG.DEFAULT_LANGUAGE,
-
-    // Idiomas soportados por la aplicación
     supportedLngs: ["en", "es"],
-
     interpolation: {
       escapeValue: false,
     },
-
     detection: {
-      // Prioridad de detección del idioma (USA-first: English por defecto)
-      // 1. localStorage: si el usuario ya seleccionó un idioma
-      // 2. en: si no hay nada guardado, usar English por defecto para USA
       order: ["localStorage"],
-
-      // Guarda el idioma seleccionado
       caches: ["localStorage"],
-
-      // Clave usada en localStorage
       lookupLocalStorage: APP_CONFIG.LANGUAGE_STORAGE_KEY,
     },
   });
 
-// Establece el idioma inicial del documento HTML
 document.documentElement.lang = i18n.language;
 
-// Actualiza el atributo lang cuando cambia el idioma
 i18n.on("languageChanged", (lng) => {
   document.documentElement.lang = lng;
 });
