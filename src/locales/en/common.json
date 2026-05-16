@@ -1,0 +1,985 @@
+{
+  "language": {
+    "label": "Language"
+  },
+  "brand": {
+    "short": "Magic Pay",
+    "dashboard": "Magic Pay",
+    "footer": "Magic Pay® by Manzur Capital"
+  },
+  "refunds": {
+    "descriptions": {
+      "refundTest": "Test refund"
+    }
+  },
+  "topbar": {
+    "searchPlaceholder": "Search payments or transactions...",
+    "userFallback": "User",
+    "actions": {
+      "openSidebar": "Open navigation menu",
+      "closeSidebar": "Close navigation menu",
+      "messages": "Messages",
+      "notifications": "Notifications",
+      "switchToLight": "Switch to light mode",
+      "switchToDark": "Switch to dark mode"
+    },
+    "admin": {
+      "role": "Administrator",
+      "shortLabel": "Admin"
+    },
+    "client": {
+      "role": "Client"
+    }
+  },
+  "common": {
+    "actions": {
+      "refresh": "Refresh",
+      "search": "Search",
+      "from": "From",
+      "to": "To",
+      "clear": "Clear",
+      "previous": "Previous",
+      "next": "Next",
+      "all": "All",
+      "downloadCsv": "Download CSV",
+      "loadMore": "Load more",
+      "close": "Close"
+    },
+    "loading": {
+      "session": "Checking session..."
+    },
+    "notifications": {
+      "dataUpdated": "Data refreshed successfully"
+    }
+  },
+  "login": {
+    "subtitle": "Sign in to your dashboard",
+    "rememberMe": "Remember me",
+    "fields": {
+      "email": "Email",
+      "password": "Password"
+    },
+    "placeholders": {
+      "email": "Enter your email",
+      "password": "Enter your password"
+    },
+    "actions": {
+      "submit": "Sign in",
+      "loading": "Signing in..."
+    },
+    "errors": {
+      "default": "We could not sign you in",
+      "invalidData": "Invalid credentials. Check your email and password.",
+      "unauthorized": "Email or password is incorrect.",
+      "forbidden": "You don't have permission to sign in with these credentials.",
+      "tooManyAttempts": "Too many attempts. Please try again in a few minutes.",
+      "requestTimeout": "The request took too long. Please try again.",
+      "serverError": "Server error. Please try again later.",
+      "backendOffline": "Authentication server is unavailable. Check that it is online.",
+      "connectionFailed": "Could not connect to the authentication server. Verify the URL configuration.",
+      "generic": "Sign in error. Please try again.",
+      "missingToken": "Backend did not return an access token.",
+      "fallback": "Something went wrong. Please try again."
+    },
+    "footer": "Magic Pay® by Manzur Capital"
+  },
+  "dashboard": {
+    "title": "Control panel",
+    "description": "Manage your payments, orders, and store performance.",
+    "kpis": {
+      "dateLabel": "Date",
+      "dateUnavailable": "Date unavailable",
+      "loading": "Loading dashboard KPIs...",
+      "error": "We could not load the dashboard KPIs."
+    },
+    "gmvDetail": {
+      "title": "Payment Intents",
+      "back": "Back to dashboard",
+      "refresh": "Refresh",
+      "error": "We could not load the payment intents.",
+      "empty": "There are no payment intents for this period.",
+      "errorResponses": {
+        "error": "We could not load the error responses.",
+        "empty": "No error responses found"
+      },
+      "modes": {
+        "label": "Payment intents detail mode",
+        "intents": "Payment Intents",
+        "errors": "Errors"
+      },
+      "filters": {
+        "period": "Period",
+        "status": "Status",
+        "statusPlaceholder": "Select status",
+        "applyDates": "Apply dates",
+        "invalidDateRange": "From date cannot be later than To date."
+      },
+      "emptyStates": {
+        "invalidRange": "No data for the selected date range."
+      },
+      "periodModes": {
+        "today": "Today",
+        "yesterday": "Yesterday"
+      },
+      "statusValues": {
+        "linkCreated": "Link Created",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "error": "Error",
+        "unknown": "{{status}}"
+      },
+      "cards": {
+        "total": {
+          "title": "Transactions",
+          "helper": "Intents recorded"
+        },
+        "amount": {
+          "title": "Total amount",
+          "helper": "Sum converted to USD"
+        },
+        "errors": {
+          "title": "Rejections",
+          "helper": "Unauthorized attempts"
+        },
+        "errorAmount": {
+          "title": "Rejected Amount",
+          "helper": "Unprocessed amounts"
+        },
+        "period": {
+          "title": "Period",
+          "helper": "Selected range"
+        }
+      },
+      "table": {
+        "title": "Payment Intents",
+        "id": "ID",
+        "orderId": "Order ID",
+        "transactionId": "Transaction ID",
+        "merchantId": "Merchant ID",
+        "intent": "Intent",
+        "reference": "Reference",
+        "customer": "Customer",
+        "merchant": "Merchant",
+        "error": "Rejection Reason",
+        "detail": "Detail",
+        "status": "Status",
+        "createdAt": "Created At",
+        "amount": "Amount"
+      }
+    },
+    "admin": {
+      "title": "Payment Platform Control",
+      "description": "Overview of all transactions, settlements, and merchant activity."
+    },
+    "client": {
+      "title": "My Payment Account",
+      "description": "Track your orders and payments.",
+      "myOrders": "My Recent Transactions",
+      "myPayments": "My Recent Charges"
+    },
+    "actions": {
+      "newCharge": "New charge",
+      "export": "Export"
+    },
+    "analytics": {
+      "title": "Project analytics"
+    },
+    "charts": {
+      "error": "We could not load the dashboard charts.",
+      "hourly": {
+        "title": "Hourly success performance",
+        "helper": "Successful transactions by hour.",
+        "hour": "Hour of day",
+        "attempts": "Attempts",
+        "successes": "Successful transactions",
+        "salesVolume": "Sales volume",
+        "totalAttempts": "Total attempts",
+        "totalSuccesses": "Total successes",
+        "totalSalesVolume": "Total volume",
+        "empty": "No hourly performance data to display."
+      },
+      "pulse": {
+        "title": "Hourly pulse",
+        "helper": "Today's USD volume and authorized transactions.",
+        "hour": "Hour of day",
+        "totalVolume": "Total volume",
+        "totalTransactions": "Total transactions",
+        "volumeAxis": "USD volume",
+        "transactionsAxis": "Transactions",
+        "volumeLegend": "USD volume",
+        "transactionsLegend": "Authorized transactions",
+        "tooltip": {
+          "volume": "Volume",
+          "transactions": "Transactions"
+        },
+        "empty": "No hourly data to display."
+      },
+      "statusDistribution": {
+        "title": "Transaction distribution",
+        "helper": "Share by transaction status.",
+        "total": "Total",
+        "items": "records",
+        "empty": "No distribution data to display."
+      },
+      "utcReference": {
+        "title": "Platform time",
+        "helper": "All transactions and records are based on UTC time.",
+        "utcTime": "UTC time",
+        "currentDate": "Local date",
+        "live": "Live",
+        "sync": "Real-time synchronization",
+        "platformReference": "Platform reference",
+        "utcDescription": "Coordinated Universal Time",
+        "localTime": "Your local time",
+        "browser": "Browser",
+        "localDescription": "Your browser local time",
+        "timezone": "Timezone",
+        "utcDate": "UTC date",
+        "localDate": "Local date",
+        "note": "Updates automatically.",
+        "footer": "Secure data",
+        "accuracy": "All times are accurate and updated in real time."
+      }
+    },
+    "metrics": {
+      "viewMetric": "View {{label}}",
+      "sales": {
+        "title": "Processed Revenue",
+        "helper": "+18% vs previous month"
+      },
+      "orders": {
+        "title": "Completed orders",
+        "helper": "+12% vs previous month"
+      },
+      "active": {
+        "title": "Orders in progress",
+        "helper": "Processing now"
+      },
+      "pending": {
+        "title": "Transactions Pending Settlement",
+        "helper": "Require attention"
+      }
+    },
+    "projects": {
+      "title": "Projects",
+      "new": "New",
+      "due": "Due: {{date}}",
+      "mercadoPago": "Integrate Mercado Pago",
+      "onboarding": "New vendor onboarding",
+      "checkout": "Optimized mobile checkout",
+      "hotSale": "Hot Sale campaign",
+      "antifraude": "PSP antifraud tests"
+    },
+    "team": {
+      "title": "PSP team",
+      "invite": "Invite",
+      "tasks": {
+        "paymentGateway": "Payment gateway setup",
+        "checkoutPro": "Mercado Pago Checkout Pro integration",
+        "antifraud": "Antifraud rules and 3DS validation",
+        "mobileCheckout": "Mobile-first checkout design"
+      },
+      "status": {
+        "completed": "Completed",
+        "inProgress": "In progress",
+        "pending": "Pending"
+      }
+    },
+    "reminder": {
+      "sectionTitle": "Reminders",
+      "title": "Operational Review",
+      "today": "Today - {{time}}",
+      "action": "Start meeting"
+    },
+    "progress": {
+      "title": "Payments progress",
+      "subtitle": "Processed this month",
+      "legend": {
+        "approved": "Approved",
+        "inProgress": "In progress",
+        "pending": "Pending"
+      }
+    },
+    "timer": {
+      "title": "Session time",
+      "actions": {
+        "pause": "Pause time",
+        "stop": "Stop time"
+      }
+    },
+    "roleContent": {
+      "admin": {
+        "actions": {
+          "primary": "New charge",
+          "secondary": "Export report"
+        },
+        "analytics": {
+          "title": "Global PSP performance"
+        },
+        "metrics": {
+          "volume": {
+            "title": "Transaction Volume",
+            "helper": "+18% across the platform"
+          },
+          "transactions": {
+            "title": "Total transactions",
+            "helper": "Registered operations"
+          },
+          "merchants": {
+            "title": "Active merchants",
+            "helper": "Processing now"
+          },
+          "alerts": {
+            "title": "Transactions Under Review",
+            "helper": "Require analysis"
+          },
+          "kpis": {
+            "gmv": {
+              "title": "Transaction Volume",
+              "helper": "Total processed"
+            },
+            "totalIntentos": {
+              "title": "Processed Operations",
+              "helper": "All transactions"
+            },
+            "ventasExitosas": {
+              "title": "Successed",
+              "helper": "Successful payments"
+            },
+            "conversionRate": {
+              "title": "Authorization Rate",
+              "helper": "Payment conversion"
+            },
+            "ticketPromedio": {
+              "title": "Average Transaction Amount",
+              "helper": "Average value per operation"
+            }
+          }
+        },
+        "projects": {
+          "title": "Platform Operations",
+          "new": "New",
+          "settlements": "Merchant Settlements",
+          "onboarding": "Merchant Onboarding",
+          "risk": "Risk and Fraud Validation",
+          "reports": "Daily Operational Report"
+        },
+        "team": {
+          "title": "Operations Team",
+          "invite": "Assign",
+          "names": {
+            "operations": "Platform Operations",
+            "risk": "Risk Management",
+            "support": "Merchant Support",
+            "finance": "Settlements"
+          },
+          "tasks": {
+            "operations": "Transaction Monitoring",
+            "risk": "Risk and Fraud Management",
+            "support": "Merchant Follow-up",
+            "finance": "Settlement Review"
+          }
+        },
+        "reminder": {
+          "sectionTitle": "Operational Reminder",
+          "title": "Daily Settlement Review",
+          "action": "Open meeting"
+        },
+        "progress": {
+          "title": "Platform Processing",
+          "subtitle": "Settlements reviewed"
+        },
+        "timer": {
+          "title": "Admin Session"
+        }
+      },
+      "client": {
+        "actions": {
+          "primary": "Create charge",
+          "secondary": "Export my payments"
+        },
+        "analytics": {
+          "title": "My business performance"
+        },
+        "metrics": {
+          "sales": {
+            "title": "My sales",
+            "helper": "+8% vs previous month"
+          },
+          "orders": {
+            "title": "My orders",
+            "helper": "Completed this month"
+          },
+          "approved": {
+            "title": "Settled Charges",
+            "helper": "Processed and confirmed"
+          },
+          "pending": {
+            "title": "Pending Charges",
+            "helper": "Waiting for confirmation"
+          }
+        },
+        "projects": {
+          "title": "My business tasks",
+          "new": "Add",
+          "openOrders": "Review open orders",
+          "pendingPayments": "Confirm pending payments",
+          "salesReport": "Prepare sales report",
+          "customers": "Follow up frequent customers"
+        },
+        "team": {
+          "title": "My operation",
+          "invite": "Add",
+          "names": {
+            "store": "Store",
+            "cashier": "Checkout",
+            "support": "Customer Support",
+            "shipping": "Deliveries"
+          },
+          "tasks": {
+            "store": "Review today's orders",
+            "cashier": "Charges registered at checkout",
+            "support": "Customers waiting for reply",
+            "shipping": "Deliveries to confirm"
+          }
+        },
+        "reminder": {
+          "sectionTitle": "Reminder",
+          "title": "Review pending charges before closing",
+          "action": "View pending"
+        },
+        "progress": {
+          "title": "My payments progress",
+          "subtitle": "Charges reconciled"
+        },
+        "timer": {
+          "title": "Time in my panel"
+        }
+      }
+    }
+  },
+  "notFound": {
+    "description": "The route you were looking for does not exist.",
+    "action": "Back to home"
+  },
+  "sidebar": {
+    "menuLabel": "Menu",
+    "generalLabel": "General",
+    "actions": {
+      "close": "Close sidebar"
+    },
+    "menu": {
+      "dashboard": "Dashboard",
+      "paymentIntents": "Payment Intents",
+      "rejectedTransactions": "Rejected Transactions",
+      "successfulPayments": "Successful Payments",
+      "refunds": "Refunds",
+      "transactions": "Transactions",
+      "payments": "Payments"
+    },
+    "general": {
+      "help": "Help",
+      "helpCenter": "Help Center"
+    },
+    "helpCenter": {
+      "title": "Help Center",
+      "description": "Get support, product guidance, and operational documentation in one place.",
+      "support": {
+        "title": "Need assistance?",
+        "description": "Reach the support team for account, workflow, or dashboard questions. We respond with priority during business hours."
+      },
+      "actions": {
+        "email": "Email support",
+        "docs": "Open documentation"
+      },
+      "meta": {
+        "hoursLabel": "Support hours",
+        "hours": "Mon-Fri, 9:00 AM - 6:00 PM",
+        "responseLabel": "Response time",
+        "responseTime": "Within 4 business hours"
+      }
+    },
+    "logout": "Log out",
+    "transactionsCard": {
+      "title": "Transaction summary",
+      "description": "Monitor payment activity, approvals, and transaction flow in real time.",
+      "action": "Open transactions"
+    }
+  },
+  "transactions": {
+    "title": "Transactions",
+    "empty": "No transactions found.",
+    "filename": "transactions.csv",
+    "table": {
+      "headers": {
+        "id": "ID",
+        "merchant": "Merchant",
+        "merchantId": "Merchant ID",
+        "amount": "Amount",
+        "currency": "Currency",
+        "status": "Status",
+        "method": "Method",
+        "createdAt": "Created at"
+      }
+    },
+    "status": {
+      "approved": "Approved",
+      "pending": "Pending",
+      "failed": "Failed",
+      "refunded": "Refunded"
+    }
+  },
+ 
+  "successfulSales": {
+    "title": "Successful Payments",
+    "back": "Back to dashboard",
+    "error": "We could not load successful payments.",
+    "errors": {
+      "refunds": "We could not load refund transactions."
+    },
+    "empty": "There are no successful payments to show.",
+    "emptyStates": {
+      "refunds": "No refund transactions found"
+    },
+    "modes": {
+      "label": "Successful payments mode",
+      "sales": "Successful Payments",
+      "refunds": "Refunds"
+    },
+    "filters": {
+      "period": "Period",
+      "datePickerOnly": "Select dates from the calendar and verify to refresh.",
+      "applyDates": "Verify dates",
+      "invalidDateRange": "From date cannot be later than To date."
+    },
+    "periodModes": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "statusValues": {
+      "settled": "Settled",
+      "refunded": "Refunded",
+      "unknown": "{{status}}"
+    },
+    "cards": {
+      "total": {
+        "title": "Successful Payments",
+        "helper": "Successful transactions"
+      },
+      "amount": {
+        "title": "Total amount",
+        "helper": "Successful payment volume"
+      },
+      "refunds": {
+        "title": "Refund transactions",
+        "helper": "Refunds found"
+      },
+      "refundAmount": {
+        "title": "Refund amount",
+        "helper": "Refunded volume"
+      }
+    },
+    "table": {
+      "transaction": "Transaction",
+      "order": "Order",
+      "description": "Description",
+      "card": "Card",
+      "status": "Status",
+      "createdAt": "Date",
+      "amount": "Amount"
+    }
+  },
+  "successfulPayments": {
+    "title": "Successful Payments",
+    "back": "Back to dashboard",
+    "error": "We could not load successful payments.",
+    "empty": "There are no successful payments to show.",
+    "filters": {
+      "period": "Period",
+      "status": "Status",
+      "applyDates": "Verify dates",
+      "invalidDateRange": "From date cannot be later than To date."
+    },
+    "periodModes": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "status": {
+      "settled": "Settled",
+      "authorized": "Authorized",
+      "declined": "Declined",
+      "refunded": "Refunded",
+      "chargeback": "Chargeback",
+      "disputed": "Disputed",
+      "partiallyRefunded": "Partially refunded",
+      "failed": "Failed",
+      "pending": "Pending",
+      "unknown": "{{status}}"
+    },
+    "cards": {
+      "total": {
+        "title": "Successful Payments",
+        "helper": "Transactions by status"
+      },
+      "amount": {
+        "title": "Total amount",
+        "helper": "Payment volume by status"
+      }
+    },
+    "table": {
+      "transaction": "Transaction",
+      "order": "Order",
+      "description": "Description",
+      "card": "Card",
+      "status": "Status",
+      "createdAt": "Date",
+      "amount": "Amount"
+    }
+  },
+  "payments": {
+    "title": "Payments",
+    "description": "Track transactions, reconciliation, and charge statuses.",
+    "errors": { "load": "Error loading payments" },
+    "search": {
+      "label": "Search",
+      "transactionPlaceholder": "TRX-20260510141215-mct82-9",
+      "topbarPlaceholder": "Successful Payments: enter TRX-YYYYMMDDHHmmss-code-number or ORD-123",
+      "invalidTransactionFormat": "The transaction must use the format TRX-YYYYMMDDHHmmss-code-number.",
+      "invalidTransactionOrOrderFormat": "Enter a transaction TRX-YYYYMMDDHHmmss-code-number or an order ORD-123.",
+      "error": "We could not search for that transaction. Try again.",
+      "empty": "No results were found for that transaction.",
+      "modal": {
+        "eyebrow": "Global search",
+        "title": "Transaction result",
+        "loading": "Searching transaction...",
+        "emptyTitle": "No matches",
+        "viewDetails": "View in page",
+        "types": {
+          "successful": "Successful payment",
+          "refund": "Refund",
+          "rejected": "Rejected transaction",
+          "intent": "Payment Intent"
+        },
+        "fields": {
+          "type": "Type",
+          "transaction": "Transaction",
+          "order": "Order",
+          "status": "Status",
+          "createdAt": "Date",
+          "card": "Card",
+          "amount": "Amount",
+          "description": "Description"
+        }
+      },
+      "placeholder": "E.g. ORDER-2024-001 or email@example.com",
+      "helper": "Search by ID, order number, or customer email."
+    },
+    "filters": {
+      "status": "Status",
+      "all": "All"
+    },
+    "pagination": {
+      "page": "Page {{page}} of {{totalPages}}"
+    },
+    "stats": {
+      "totalRevenue": { "title": "Total Revenue", "helper": "Gross processed amount" },
+      "paid": { "title": "Paid Payments", "helper": "Approved transactions" },
+      "pending": { "title": "Pending Payments", "helper": "Require reconciliation" },
+      "rejected": { "title": "Rejected Payments", "helper": "Need review" }
+    },
+    "table": {
+      "headers": {
+        "orderId": "Order ID",
+        "customer": "Customer",
+        "paymentMethod": "Payment Method",
+        "status": "Payment Status",
+        "createdAt": "Date",
+        "total": "Total"
+      },
+      "emptyState": "No payments match the current filters."
+    },
+    "status": {
+      "paid": "Paid",
+      "pending": "Pending",
+      "rejected": "Rejected"
+    },
+    "roleContent": {
+      "admin": {
+        "title": "Platform payments",
+        "description": "Monitor charges, reconciliation, and rejected payments across all merchants.",
+        "stats": {
+          "totalRevenue": { "title": "Transaction Volume", "helper": "Gross platform total" },
+          "paid": { "title": "Approved charges", "helper": "Confirmed transactions" },
+          "pending": { "title": "Charges to reconcile", "helper": "Need operations review" },
+          "rejected": { "title": "Rejected charges", "helper": "Support or fraud alerts" }
+        }
+      },
+      "client": {
+        "title": "My payments",
+        "description": "Review your business charges, their status, and reconciliation dates.",
+        "stats": {
+          "totalRevenue": { "title": "My revenue", "helper": "Total received from my charges" },
+          "paid": { "title": "My confirmed payments", "helper": "Approved charges" },
+          "pending": { "title": "My pending payments", "helper": "Waiting confirmation" },
+          "rejected": { "title": "My rejected payments", "helper": "Need follow-up" }
+        }
+      }
+    }
+  },
+  "clients": {
+    "title": "Clients",
+    "description": "Explore segments, history, and commercial opportunities for each client.",
+    "actions": { "newClient": "New client" },
+    "search": { "placeholder": "Search by name, email, or city" },
+    "filters": {
+      "label": "Filter by segment",
+      "all": "All",
+      "active": "Active",
+      "inactive": "Inactive",
+      "risk": "Risk",
+      "gold": "Gold",
+      "silver": "Silver",
+      "new": "New",
+      "segmentPrefix": "Segment: {{segment}}"
+    },
+    "stats": {
+      "total": { "title": "Total clients", "helper": "Commercial base" },
+      "active": { "title": "Active clients", "helper": "With recent purchases" },
+      "risk": { "title": "At-risk clients", "helper": "Need review" },
+      "value": { "title": "Accumulated value", "helper": "Historical revenue" }
+    },
+    "tiers": { "gold": "Gold", "silver": "Silver", "new": "New" },
+    "table": {
+      "headers": {
+        "client": "Client",
+        "segment": "Segment",
+        "status": "Status",
+        "channel": "Channel",
+        "orders": "Orders",
+        "value": "Value",
+        "lastPurchase": "Last purchase"
+      },
+      "emptyState": "No clients match the selected filters."
+    },
+    "details": {
+      "empty": {
+        "title": "Client details",
+        "description": "Select a client to view the full information."
+      },
+      "lastPurchase": "Last purchase: {{date}}",
+      "segment": "Segment {{tier}}",
+      "labels": { "email": "Email", "phone": "Phone", "city": "City" },
+      "metrics": {
+        "value": "Accumulated value",
+        "orders": "Orders",
+        "averageTicket": "Average ticket",
+        "growth": "Growth"
+      },
+      "tags": { "title": "Tags" },
+      "notes": { "title": "Commercial notes" }
+    },
+    "roleContent": {
+      "admin": {
+        "title": "Platform clients",
+        "description": "Explore the commercial base, segments, and risk of registered clients.",
+        "action": "New client",
+        "stats": {
+          "total": { "title": "Total clients", "helper": "Full commercial base" },
+          "active": { "title": "Active clients", "helper": "With recent activity" },
+          "risk": { "title": "At-risk clients", "helper": "Need review" },
+          "value": { "title": "Accumulated value", "helper": "Historical revenue" }
+        }
+      },
+      "client": {
+        "title": "My clients",
+        "description": "Follow up with the customers who buy from your business.",
+        "action": "Register client",
+        "stats": {
+          "total": { "title": "My clients", "helper": "My business contacts" },
+          "active": { "title": "Active clients", "helper": "Bought recently" },
+          "risk": { "title": "Clients to contact", "helper": "Need follow-up" },
+          "value": { "title": "My sales value", "helper": "Historical business revenue" }
+        }
+      }
+    }
+  },
+  "orders": {
+    "title": "Orders",
+    "description": "View the operational status of your orders and their logistics progress.",
+    "filters": {
+      "label": "Filter by status",
+      "all": "All",
+      "completed": "Completed",
+      "pending": "Pending",
+      "cancelled": "Cancelled"
+    },
+    "stats": {
+      "total": { "title": "Total orders", "helper": "Registered orders" },
+      "completed": { "title": "Completed orders", "helper": "Confirmed deliveries" },
+      "pending": { "title": "Pending orders", "helper": "In logistics process" },
+      "cancelled": { "title": "Cancelled orders", "helper": "Need follow-up" }
+    },
+    "table": {
+      "headers": {
+        "orderId": "Order ID",
+        "customer": "Customer",
+        "order": "Order",
+        "salesChannel": "Sales Channel",
+        "status": "Order Status",
+        "date": "Date",
+        "total": "Total"
+      },
+      "emptyState": "No orders match the selected filter."
+    },
+    "details": {
+      "empty": {
+        "title": "Order details",
+        "description": "Select an order to view the full information."
+      },
+      "metaLabel": "Administrative details",
+      "title": "Order {{id}}",
+      "createdAt": "Created: {{date}}",
+      "risk": "Risk {{risk}}",
+      "sections": {
+        "customer": "Customer",
+        "payment": "Payment",
+        "shipping": "Shipping address",
+        "items": "Order items",
+        "notes": "Internal notes and audit"
+      },
+      "payment": {
+        "method": "Method: {{method}}",
+        "transaction": "Transaction: {{id}}",
+        "authorization": "Authorization: {{code}}",
+        "installments": "Installments: {{count}}",
+        "card": "Card: **** {{last4}}",
+        "total": "Total: {{total}}"
+      },
+      "shipping": {
+        "zipCode": "ZIP: {{zipCode}}",
+        "phone": "Phone: {{phone}}",
+        "reference": "Reference: {{reference}}",
+        "estimatedDelivery": "Estimated delivery: {{date}}"
+      },
+      "itemMeta": "SKU: {{sku}} | Quantity: {{quantity}}",
+      "riskReason": "Risk reason: {{reason}}"
+    },
+    "risk": { "low": "Low", "medium": "Medium", "high": "High" },
+    "roleContent": {
+      "admin": {
+        "title": "Merchant orders",
+        "description": "Supervise orders, payments, risk, and logistics across the platform.",
+        "stats": {
+          "total": { "title": "Total orders", "helper": "Orders from all merchants" },
+          "completed": { "title": "Completed orders", "helper": "Confirmed deliveries" },
+          "pending": { "title": "Pending orders", "helper": "In operations process" },
+          "cancelled": { "title": "Cancelled orders", "helper": "Need follow-up" }
+        },
+        "details": {
+          "metaLabel": "Administrative details",
+          "notesTitle": "Internal notes and audit"
+        }
+      },
+      "client": {
+        "title": "My orders",
+        "description": "Review your business orders and each delivery status.",
+        "stats": {
+          "total": { "title": "My orders", "helper": "Orders from my business" },
+          "completed": { "title": "Delivered", "helper": "Completed orders" },
+          "pending": { "title": "In progress", "helper": "Waiting delivery" },
+          "cancelled": { "title": "Cancelled", "helper": "Orders to review" }
+        },
+        "details": {
+          "metaLabel": "Order details",
+          "notesTitle": "Order follow-up"
+        }
+      }
+    }
+  },
+  "reports": {
+    "title": "Reports",
+    "description": "Analyze sales, channels, and products with dynamic period filters.",
+    "actions": { "export": "Export" },
+    "range": { "label": "Report period", "helper": "Change the range to recalculate the view" },
+    "stats": {
+      "revenue": { "title": "Revenue", "helper": "+{{growth}}% vs previous period" },
+      "orders": { "title": "Orders", "helper": "Captured orders" },
+      "averageTicket": { "title": "Average ticket", "helper": "Average value per order" },
+      "conversion": { "title": "Conversion", "helper": "{{refunds}} refunds recorded" }
+    },
+    "chart": {
+      "title": "Performance",
+      "options": { "revenue": "Revenue", "orders": "Orders", "visitors": "Visitors" },
+      "labels": {
+        "revenue": "Revenue by period",
+        "orders": "Orders by period",
+        "visitors": "Visitors by period"
+      }
+    },
+    "channelBreakdown": {
+      "title": "Channels",
+      "description": "Share by sales origin",
+      "meta": "{{orders}} orders | {{conversionRate}}% conversion",
+      "share": "{{share}}% of total"
+    },
+    "topProducts": {
+      "title": "Top products",
+      "description": "Ranking adjusted by selected channel",
+      "headers": {
+        "sku": "SKU",
+        "product": "Product",
+        "channel": "Channel",
+        "units": "Units",
+        "revenue": "Revenue",
+        "refunds": "Refunds"
+      },
+      "emptyState": "No products match the selected channel."
+    },
+    "roleContent": {
+      "admin": {
+        "title": "Platform reports",
+        "description": "Analyze performance, channels, and products across all merchants.",
+        "stats": {
+          "revenue": { "title": "Global revenue", "helper": "+{{growth}}% vs previous period" },
+          "orders": { "title": "Total orders", "helper": "Orders captured by merchants" },
+          "averageTicket": { "title": "PSP average ticket", "helper": "Platform average value" },
+          "conversion": { "title": "Global conversion", "helper": "{{refunds}} refunds recorded" }
+        },
+        "chart": { "title": "Platform performance" },
+        "channels": {
+          "title": "Sales channels",
+          "description": "Share by source across the platform"
+        },
+        "topProducts": {
+          "title": "Top products",
+          "description": "Global ranking adjusted by selected channel"
+        }
+      },
+      "client": {
+        "title": "My reports",
+        "description": "Analyze sales, channels, and products from your own business.",
+        "stats": {
+          "revenue": { "title": "My revenue", "helper": "+{{growth}}% vs previous period" },
+          "orders": { "title": "My orders", "helper": "Orders from my business" },
+          "averageTicket": { "title": "My average ticket", "helper": "Average value per order" },
+          "conversion": { "title": "My conversion", "helper": "{{refunds}} refunds recorded" }
+        },
+        "chart": { "title": "My business performance" },
+        "channels": {
+          "title": "My channels",
+          "description": "Sales origin for my business"
+        },
+        "topProducts": {
+          "title": "My top products",
+          "description": "Product ranking for my business"
+        }
+        
+      }
+    }
+  },
+  "notFound": {
+    "title": "404",
+    "description": "Page not found",
+    "action": "Back to home"
+  }
+}

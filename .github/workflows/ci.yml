@@ -1,0 +1,61 @@
+name: CI
+
+# Ejecuta el pipeline cuando hay cambios en la rama principal
+# o cuando se propone un cambio hacia main mediante pull request.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Evita ejecuciones duplicadas para la misma rama/PR,
+# cancelando corridas anteriores en progreso.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      # Descarga el codigo del repositorio para poder ejecutar el job.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Configura Node.js en version LTS e habilita cache de npm
+      # para acelerar instalaciones en ejecuciones futuras.
+      - name: Set up Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Instala todas las dependencias declaradas en package.json.
+      - name: Install dependencies
+        run: npm install
+
+      # Mantiene el codigo legible y evita deuda tecnica basica.
+      - name: Run lint
+        run: npm run lint
+
+      # Revisa tipos de TypeScript; Vite puede compilar aunque existan
+      # errores que el compilador detecta mejor.
+      - name: Run typecheck
+        run: npm run typecheck
+
+      # Ejecuta pruebas unitarias (Vitest). Si falla, el workflow falla.
+      - name: Run unit tests
+        run: npm run test
+
+      # Falla el pipeline si aparece una vulnerabilidad alta o critica.
+      - name: Audit production dependencies
+        run: npm audit --audit-level=high
+
+      # Genera el build de produccion con Vite.
+      # Este paso valida que la app compila correctamente.
+      - name: Build application
+        run: npm run build

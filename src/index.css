@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 150 24% 96%;
+    --foreground: 156 34% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 156 34% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 156 34% 8%;
+
+    --primary: 154 67% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 150 20% 91%;
+    --secondary-foreground: 156 34% 10%;
+
+    --muted: 150 20% 93%;
+    --muted-foreground: 154 10% 43%;
+
+    --accent: 164 56% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 154 67% 30%;
+    --success-foreground: 0 0% 100%;
+
+    --info: 194 76% 36%;
+    --info-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 150 16% 86%;
+    --input: 150 16% 88%;
+    --ring: 154 67% 24%;
+
+    --radius: 0.5rem;
+
+    --dashboard-soft: 150 24% 94%;
+    --dashboard-inverted: 154 67% 24%;
+    --dashboard-inverted-foreground: 0 0% 100%;
+    --dashboard-line: 150 12% 68%;
+
+    --sidebar-background: 150 20% 97%;
+    --sidebar-foreground: 154 10% 38%;
+    --sidebar-primary: 154 67% 24%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 150 24% 92%;
+    --sidebar-accent-foreground: 156 34% 8%;
+    --sidebar-border: 150 16% 88%;
+    --sidebar-ring: 154 67% 24%;
+  }
+
+  .dark {
+    --background: 160 22% 7%;
+    --foreground: 150 24% 94%;
+
+    --card: 158 18% 11%;
+    --card-foreground: 150 24% 94%;
+
+    --popover: 158 18% 11%;
+    --popover-foreground: 150 24% 94%;
+
+    --primary: 158 48% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 158 14% 17%;
+    --secondary-foreground: 150 24% 94%;
+
+    --muted: 158 14% 16%;
+    --muted-foreground: 150 10% 68%;
+
+    --accent: 170 44% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 150 48% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --info: 193 70% 58%;
+    --info-foreground: 156 34% 8%;
+
+    --destructive: 0 70% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 158 13% 23%;
+    --input: 158 13% 25%;
+    --ring: 158 48% 42%;
+
+    --dashboard-soft: 158 14% 15%;
+    --dashboard-inverted: 158 48% 31%;
+    --dashboard-inverted-foreground: 0 0% 100%;
+    --dashboard-line: 150 10% 42%;
+
+    --sidebar-background: 160 22% 8%;
+    --sidebar-foreground: 150 10% 70%;
+    --sidebar-primary: 158 48% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 158 14% 16%;
+    --sidebar-accent-foreground: 150 24% 94%;
+    --sidebar-border: 158 13% 20%;
+    --sidebar-ring: 158 48% 42%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  .dashboard-card {
+    @apply rounded-lg border border-border/70 bg-card;
+    box-shadow: 0 18px 44px hsl(var(--foreground) / 0.06);
+  }
+
+  .dashboard-card-soft {
+    @apply rounded-lg border border-border/60 bg-dashboard-soft;
+    box-shadow: 0 16px 38px hsl(var(--foreground) / 0.045);
+  }
+
+  .dashboard-card-inverted {
+    @apply rounded-lg text-dashboard-inverted-foreground;
+    background:
+      linear-gradient(150deg, hsl(156 57% 13%) 0%, hsl(154 66% 21%) 44%, hsl(148 68% 32%) 100%);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--dashboard-inverted-foreground) / 0.12),
+      0 18px 44px hsl(154 67% 18% / 0.24);
+  }
+
+  .dark .dashboard-card-inverted {
+    background:
+      linear-gradient(150deg, hsl(162 52% 14%) 0%, hsl(158 49% 25%) 48%, hsl(150 47% 38%) 100%);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--dashboard-inverted-foreground) / 0.12),
+      0 18px 44px hsl(160 28% 4% / 0.42);
+  }
+
+  .dashboard-card-header {
+    @apply border-b border-border/60 bg-muted/30;
+  }
+}
