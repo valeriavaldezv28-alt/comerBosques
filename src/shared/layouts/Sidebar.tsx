@@ -1,6 +1,20 @@
-import { HelpCircle, Home, LogOut, Store, X } from "lucide-react";
+import {
+  BarChart3,
+  Boxes,
+  HelpCircle,
+  LogOut,
+  PackageMinus,
+  PackagePlus,
+  Repeat2,
+  SlidersHorizontal,
+  Settings,
+  ShoppingCart,
+  Store,
+  Truck,
+  UsersRound,
+  X,
+} from "lucide-react";
 import { useEffect } from "react";
-import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ROUTE_PATHS } from "@/config/routePaths";
 
@@ -13,9 +27,63 @@ type BarraLateralProps = {
 
 const menuItems = [
   {
-    key: "dashboard",
-    icon: Home,
-    label: "sidebar.menu.dashboard",
+    key: "inventory",
+    icon: Boxes,
+    label: "Inventario",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "entries",
+    icon: PackagePlus,
+    label: "Entradas",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "exits",
+    icon: PackageMinus,
+    label: "Salidas",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "transfers",
+    icon: Repeat2,
+    label: "Traspasos",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "adjustments",
+    icon: SlidersHorizontal,
+    label: "Ajustes",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "purchases",
+    icon: ShoppingCart,
+    label: "Compras",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "sales",
+    icon: Store,
+    label: "Ventas",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "suppliers",
+    icon: Truck,
+    label: "Proveedores",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "reports",
+    icon: BarChart3,
+    label: "Reportes",
+    path: ROUTE_PATHS.dashboard,
+  },
+  {
+    key: "settings",
+    icon: Settings,
+    label: "Configuracion",
     path: ROUTE_PATHS.dashboard,
   },
 ] as const;
@@ -28,7 +96,6 @@ export const BarraLateral = ({
 }: BarraLateralProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
 
   useEffect(() => {
     if (mode !== "mobile" || !isOpen) {
@@ -57,15 +124,13 @@ export const BarraLateral = ({
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary shadow-sm shadow-primary/25">
             <Store className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="truncate text-base font-semibold text-foreground">
-            {t("brand.dashboard")}
-          </span>
+          <span className="truncate text-base font-semibold text-foreground">Comercializadora Bosques</span>
         </div>
         {mode === "mobile" && (
           <button
             type="button"
             onClick={onClose}
-            aria-label={t("sidebar.actions.close")}
+            aria-label="Cerrar menu"
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -74,12 +139,12 @@ export const BarraLateral = ({
       </div>
 
       <p className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {t("sidebar.menuLabel")}
+        Operacion
       </p>
 
       <nav className="space-y-1">
         {menuItems.map((item) => {
-          const active = location.pathname === item.path;
+          const active = location.pathname === item.path && item.key === "inventory";
           const Icon = item.icon;
 
           return (
@@ -94,26 +159,33 @@ export const BarraLateral = ({
               }`}
             >
               <Icon className="h-4 w-4" />
-              <span className="flex-1 text-left">{t(item.label)}</span>
+              <span className="flex-1 text-left">{item.label}</span>
             </button>
           );
         })}
       </nav>
 
       <div className="mt-auto space-y-2 pt-8">
+        <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/70 p-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-sidebar-accent-foreground">
+            <UsersRound className="h-4 w-4" />
+            Almacen central
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Recepcion y surtido activos</p>
+        </div>
         <button
           type="button"
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           <HelpCircle className="h-4 w-4" />
-          <span>{t("sidebar.general.help")}</span>
+          <span>Ayuda</span>
         </button>
         <button
           type="button"
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           <LogOut className="h-4 w-4" />
-          <span>{t("sidebar.logout")}</span>
+          <span>Salir</span>
         </button>
       </div>
     </>
@@ -132,7 +204,7 @@ export const BarraLateral = ({
       <button
         type="button"
         onClick={onClose}
-        aria-label={t("sidebar.actions.close")}
+        aria-label="Cerrar menu"
         className={`absolute inset-0 bg-black/50 transition-opacity ${isOpen ? "opacity-100" : "opacity-0"}`}
       />
 

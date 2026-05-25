@@ -13,7 +13,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 156 34% 8%;
 
-    --primary: 154 67% 24%;
+    --primary: 98 66% 34%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 150 20% 91%;
@@ -22,10 +22,10 @@
     --muted: 150 20% 93%;
     --muted-foreground: 154 10% 43%;
 
-    --accent: 164 56% 42%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 88 78% 46%;
+    --accent-foreground: 150 34% 8%;
 
-    --success: 154 67% 30%;
+    --success: 104 68% 36%;
     --success-foreground: 0 0% 100%;
 
     --info: 194 76% 36%;
@@ -36,73 +36,73 @@
 
     --border: 150 16% 86%;
     --input: 150 16% 88%;
-    --ring: 154 67% 24%;
+    --ring: 98 66% 34%;
 
     --radius: 0.5rem;
 
     --dashboard-soft: 150 24% 94%;
-    --dashboard-inverted: 154 67% 24%;
+    --dashboard-inverted: 98 66% 34%;
     --dashboard-inverted-foreground: 0 0% 100%;
     --dashboard-line: 150 12% 68%;
 
     --sidebar-background: 150 20% 97%;
     --sidebar-foreground: 154 10% 38%;
-    --sidebar-primary: 154 67% 24%;
+    --sidebar-primary: 98 66% 34%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 150 24% 92%;
     --sidebar-accent-foreground: 156 34% 8%;
     --sidebar-border: 150 16% 88%;
-    --sidebar-ring: 154 67% 24%;
+    --sidebar-ring: 98 66% 34%;
   }
 
   .dark {
-    --background: 160 22% 7%;
-    --foreground: 150 24% 94%;
+    --background: 150 22% 6%;
+    --foreground: 120 35% 95%;
 
-    --card: 158 18% 11%;
-    --card-foreground: 150 24% 94%;
+    --card: 148 18% 10%;
+    --card-foreground: 120 35% 95%;
 
-    --popover: 158 18% 11%;
-    --popover-foreground: 150 24% 94%;
+    --popover: 148 18% 10%;
+    --popover-foreground: 120 35% 95%;
 
-    --primary: 158 48% 42%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 96 82% 56%;
+    --primary-foreground: 150 34% 8%;
 
-    --secondary: 158 14% 17%;
-    --secondary-foreground: 150 24% 94%;
+    --secondary: 144 18% 17%;
+    --secondary-foreground: 120 35% 95%;
 
-    --muted: 158 14% 16%;
-    --muted-foreground: 150 10% 68%;
+    --muted: 144 15% 15%;
+    --muted-foreground: 118 18% 70%;
 
-    --accent: 170 44% 42%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 86 88% 61%;
+    --accent-foreground: 150 34% 8%;
 
-    --success: 150 48% 46%;
-    --success-foreground: 0 0% 100%;
+    --success: 104 78% 52%;
+    --success-foreground: 150 34% 8%;
 
-    --info: 193 70% 58%;
-    --info-foreground: 156 34% 8%;
+    --info: 177 62% 54%;
+    --info-foreground: 150 34% 8%;
 
-    --destructive: 0 70% 56%;
+    --destructive: 0 76% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 158 13% 23%;
-    --input: 158 13% 25%;
-    --ring: 158 48% 42%;
+    --border: 140 14% 23%;
+    --input: 140 14% 25%;
+    --ring: 96 82% 56%;
 
-    --dashboard-soft: 158 14% 15%;
-    --dashboard-inverted: 158 48% 31%;
+    --dashboard-soft: 144 15% 14%;
+    --dashboard-inverted: 96 82% 56%;
     --dashboard-inverted-foreground: 0 0% 100%;
-    --dashboard-line: 150 10% 42%;
+    --dashboard-line: 104 38% 48%;
 
-    --sidebar-background: 160 22% 8%;
-    --sidebar-foreground: 150 10% 70%;
-    --sidebar-primary: 158 48% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 158 14% 16%;
-    --sidebar-accent-foreground: 150 24% 94%;
-    --sidebar-border: 158 13% 20%;
-    --sidebar-ring: 158 48% 42%;
+    --sidebar-background: 150 24% 7%;
+    --sidebar-foreground: 118 18% 72%;
+    --sidebar-primary: 96 82% 56%;
+    --sidebar-primary-foreground: 150 34% 8%;
+    --sidebar-accent: 144 16% 15%;
+    --sidebar-accent-foreground: 120 35% 95%;
+    --sidebar-border: 140 14% 19%;
+    --sidebar-ring: 96 82% 56%;
   }
 }
 
@@ -148,10 +148,10 @@
 
   .dark .dashboard-card-inverted {
     background:
-      linear-gradient(150deg, hsl(162 52% 14%) 0%, hsl(158 49% 25%) 48%, hsl(150 47% 38%) 100%);
+      linear-gradient(150deg, hsl(150 30% 10%) 0%, hsl(118 44% 21%) 48%, hsl(96 82% 38%) 100%);
     box-shadow:
       inset 0 1px 0 hsl(var(--dashboard-inverted-foreground) / 0.12),
-      0 18px 44px hsl(160 28% 4% / 0.42);
+      0 18px 44px hsl(96 82% 22% / 0.34);
   }
 
   .dashboard-card-header {

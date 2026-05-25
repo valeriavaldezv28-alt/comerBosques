@@ -16,10 +16,10 @@ const obtenerModoTemaGuardado = (): ModoTema | null => {
 export const servicioTema = {
   obtenerModoTemaInicial(): ModoTema {
     if (typeof window === "undefined") {
-      return "light";
+      return "dark";
     }
 
-    return obtenerModoTemaGuardado() ?? "light";
+    return obtenerModoTemaGuardado() ?? "dark";
   },
 
   aplicarModoTema(modoTema: ModoTema): void {
