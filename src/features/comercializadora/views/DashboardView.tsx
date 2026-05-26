@@ -1,10 +1,11 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
-  ArrowDownToLine,
   ArrowUpRight,
   Boxes,
+  Camera,
   CircleDollarSign,
   ClipboardList,
+  FolderUp,
   ImagePlus,
   PackageCheck,
   Plus,
@@ -13,20 +14,19 @@ import {
 } from "lucide-react";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
-type InventoryStatus = "Activo" | "Bajo stock" | "Agotado";
+type InventoryStatus = "En rango" | "Bajo minimo" | "Agotado" | "Sobre maximo";
 
 type InventoryProduct = {
   id: string;
   barcode: string;
   name: string;
-  category: string;
+  category: CategoryOption;
   brand: string;
-  supplier: string;
-  unit: string;
-  warehouse: string;
+  unit: UnitOption;
   minStock: number;
-  averageCost: number;
+  maxStock: number;
   salePrice: number;
+  taxRate: number;
   imageUrl: string;
   stockTotal: number;
   available: number;
@@ -35,40 +35,74 @@ type InventoryProduct = {
 
 type ProductForm = Omit<InventoryProduct, "stockTotal" | "available" | "lastMovement">;
 
+const categoryOptions = ["Aceites", "Bebidas", "Abarrotes", "Limpieza"] as const;
+type CategoryOption = (typeof categoryOptions)[number];
+
+const brandOptions = ["Sin marca", "Nutrioli", "Coca-Cola", "Great Value", "Fabuloso"] as const;
+const unitOptions = ["Caja"] as const;
+type UnitOption = (typeof unitOptions)[number];
+
+const taxOptions = [
+  { label: "IVA 16%", value: 16 },
+  { label: "IVA 0%", value: 0 },
+  { label: "Exento", value: 0 },
+];
+
+const categoryStockRules: Record<CategoryOption, { minStock: number; maxStock: number }> = {
+  Aceites: { minStock: 24, maxStock: 120 },
+  Bebidas: { minStock: 48, maxStock: 240 },
+  Abarrotes: { minStock: 30, maxStock: 180 },
+  Limpieza: { minStock: 18, maxStock: 90 },
+};
+
 const emptyProductForm: ProductForm = {
   id: "",
   barcode: "",
   name: "",
-  category: "",
-  brand: "",
-  supplier: "",
-  unit: "",
-  warehouse: "",
-  minStock: 0,
-  averageCost: 0,
+  category: "Aceites",
+  brand: "Sin marca",
+  unit: "Caja",
+  minStock: categoryStockRules.Aceites.minStock,
+  maxStock: categoryStockRules.Aceites.maxStock,
   salePrice: 0,
+  taxRate: 16,
   imageUrl: "",
 };
 
-const quickFilters = ["Categoria", "Marca", "Proveedor", "Almacen", "Estatus", "Nivel de stock"];
+const quickFilters = ["Categoria", "Marca", "Estatus", "Nivel de stock"];
 
-const formFields = [
-  { name: "imageUrl", label: "Imagen del producto", placeholder: "URL de imagen" },
-  { name: "id", label: "ID / Codigo", placeholder: "AB-1001" },
-  { name: "barcode", label: "Codigo de barras", placeholder: "7501023501128" },
-  { name: "name", label: "Nombre del producto", placeholder: "Aceite vegetal 1 L" },
-  { name: "category", label: "Categoria", placeholder: "Aceites" },
-  { name: "brand", label: "Marca", placeholder: "Marca comercial" },
-  { name: "supplier", label: "Proveedor", placeholder: "Proveedor principal" },
-  { name: "unit", label: "Unidad de medida", placeholder: "Caja, pieza, kg" },
-  { name: "warehouse", label: "Almacen", placeholder: "Almacen central" },
-] satisfies Array<{ name: keyof ProductForm; label: string; placeholder: string }>;
-
-const numericFields = [
-  { name: "minStock", label: "Stock minimo", placeholder: "24" },
-  { name: "averageCost", label: "Costo promedio", placeholder: "28.40" },
-  { name: "salePrice", label: "Precio venta", placeholder: "38.90" },
-] satisfies Array<{ name: keyof ProductForm; label: string; placeholder: string }>;
+const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
+  "7501023501128": {
+    name: "Aceite vegetal 1 L",
+    category: "Aceites",
+    brand: "Nutrioli",
+    unit: "Caja",
+    salePrice: 38.9,
+    minStock: 24,
+    maxStock: 120,
+    taxRate: 16,
+  },
+  "7501055300072": {
+    name: "Refresco cola 600 ml",
+    category: "Bebidas",
+    brand: "Coca-Cola",
+    unit: "Caja",
+    salePrice: 18,
+    minStock: 48,
+    maxStock: 240,
+    taxRate: 16,
+  },
+  "7501035910017": {
+    name: "Limpiador multiusos 1 L",
+    category: "Limpieza",
+    brand: "Fabuloso",
+    unit: "Caja",
+    salePrice: 31,
+    minStock: 18,
+    maxStock: 90,
+    taxRate: 16,
+  },
+};
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("es-MX", {
@@ -83,22 +117,46 @@ const getStatus = (product: InventoryProduct): InventoryStatus => {
   }
 
   if (product.available <= product.minStock) {
-    return "Bajo stock";
+    return "Bajo minimo";
   }
 
-  return "Activo";
+  if (product.maxStock > 0 && product.available >= product.maxStock) {
+    return "Sobre maximo";
+  }
+
+  return "En rango";
 };
 
 const getStatusClassName = (status: InventoryStatus) => {
-  if (status === "Activo") {
+  if (status === "En rango") {
     return "bg-success/10 text-success ring-success/25";
   }
 
-  if (status === "Bajo stock") {
+  if (status === "Bajo minimo") {
     return "bg-amber-100 text-amber-800 ring-amber-300/70 dark:bg-amber-400/15 dark:text-amber-200";
   }
 
+  if (status === "Sobre maximo") {
+    return "bg-sky-100 text-sky-800 ring-sky-300/70 dark:bg-sky-400/15 dark:text-sky-200";
+  }
+
   return "bg-destructive/10 text-destructive ring-destructive/25";
+};
+
+const getStockAlert = (product: InventoryProduct, status: InventoryStatus) => {
+  if (status === "Agotado") {
+    return "Sin existencias";
+  }
+
+  if (status === "Bajo minimo") {
+    return `Pedir ${Math.max(product.maxStock - product.available, 0)} ${product.unit}`;
+  }
+
+  if (status === "Sobre maximo") {
+    return `Arriba por ${product.available - product.maxStock}`;
+  }
+
+  return "Dentro del rango";
 };
 
 export default function DashboardView() {
@@ -106,8 +164,32 @@ export default function DashboardView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
-  const [entryProductId, setEntryProductId] = useState<string | null>(null);
-  const [entryQuantity, setEntryQuantity] = useState("");
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+
+  const nextProductId = useMemo(() => {
+    const nextNumber =
+      products.reduce((highestNumber, product) => {
+        const match = /^PROD-(\d+)$/.exec(product.id);
+        return match ? Math.max(highestNumber, Number(match[1])) : highestNumber;
+      }, 0) + 1;
+
+    return `PROD-${String(nextNumber).padStart(6, "0")}`;
+  }, [products]);
+
+  useEffect(() => {
+    if (!isProductFormOpen) {
+      return;
+    }
+
+    setProductForm((currentForm) => ({
+      ...currentForm,
+      id: currentForm.id || nextProductId,
+    }));
+    window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
+  }, [isProductFormOpen, nextProductId]);
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -117,28 +199,88 @@ export default function DashboardView() {
     }
 
     return products.filter((product) =>
-      [product.id, product.barcode, product.name, product.category, product.brand, product.supplier]
+      [product.id, product.barcode, product.name, product.category, product.brand]
         .join(" ")
         .toLowerCase()
         .includes(normalizedSearch),
     );
   }, [products, searchTerm]);
 
-  const activeProducts = products.filter((product) => getStatus(product) === "Activo").length;
-  const lowStockProducts = products.filter((product) => getStatus(product) === "Bajo stock").length;
+  const activeProducts = products.filter((product) => getStatus(product) === "En rango").length;
+  const lowStockProducts = products.filter((product) => getStatus(product) === "Bajo minimo").length;
   const soldOutProducts = products.filter((product) => getStatus(product) === "Agotado").length;
+  const overStockProducts = products.filter((product) => getStatus(product) === "Sobre maximo").length;
   const inventoryValue = products.reduce(
-    (total, product) => total + product.stockTotal * product.averageCost,
+    (total, product) => total + product.stockTotal * product.salePrice,
     0,
   );
-  const entryProduct = products.find((product) => product.id === entryProductId) ?? null;
 
   const updateProductForm = (field: keyof ProductForm, value: string) => {
     setProductForm((currentForm) => ({
       ...currentForm,
-      [field]: ["minStock", "averageCost", "salePrice"].includes(field)
+      [field]: ["minStock", "maxStock", "salePrice", "taxRate"].includes(field)
         ? Number(value)
         : value,
+    }));
+  };
+
+  const updateProductCategory = (category: CategoryOption) => {
+    const stockRule = categoryStockRules[category];
+
+    setProductForm((currentForm) => ({
+      ...currentForm,
+      category,
+      minStock: stockRule.minStock,
+      maxStock: stockRule.maxStock,
+    }));
+  };
+
+  const suggestProductFromBarcode = () => {
+    const barcode = productForm.barcode.trim();
+
+    if (!barcode) {
+      return;
+    }
+
+    const existingProduct = products.find((product) => product.barcode === barcode);
+    const suggestion = existingProduct ?? barcodeSuggestions[barcode];
+
+    if (!suggestion) {
+      return;
+    }
+
+    setProductForm((currentForm) => ({
+      ...currentForm,
+      name: suggestion.name ?? currentForm.name,
+      category: suggestion.category ?? currentForm.category,
+      brand: suggestion.brand ?? currentForm.brand,
+      unit: suggestion.unit ?? currentForm.unit,
+      salePrice: suggestion.salePrice ?? currentForm.salePrice,
+      minStock: suggestion.minStock ?? currentForm.minStock,
+      maxStock: suggestion.maxStock ?? currentForm.maxStock,
+      taxRate: suggestion.taxRate ?? currentForm.taxRate,
+      imageUrl: suggestion.imageUrl ?? currentForm.imageUrl,
+    }));
+  };
+
+  const handleBarcodeKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    suggestProductFromBarcode();
+    window.setTimeout(() => nameInputRef.current?.focus(), 0);
+  };
+
+  const updateProductImage = (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    setProductForm((currentForm) => ({
+      ...currentForm,
+      imageUrl: URL.createObjectURL(file),
     }));
   };
 
@@ -147,12 +289,30 @@ export default function DashboardView() {
     setIsProductFormOpen(false);
   };
 
+  const clearProductForm = () => {
+    setProductForm({
+      ...emptyProductForm,
+      id: nextProductId,
+      category: productForm.category,
+      brand: productForm.brand,
+      unit: productForm.unit,
+      taxRate: productForm.taxRate,
+      minStock: productForm.minStock,
+      maxStock: productForm.maxStock,
+    });
+    window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
+  };
+
   const handleCreateProduct = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const shouldContinue = submitter?.value === "continue";
 
     setProducts((currentProducts) => [
       {
         ...productForm,
+        id: productForm.id || nextProductId,
         stockTotal: 0,
         available: 0,
         lastMovement: "Producto creado sin stock inicial",
@@ -160,86 +320,23 @@ export default function DashboardView() {
       ...currentProducts,
     ]);
 
-    resetProductForm();
-  };
-
-  const handleEntrySubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const quantity = Number(entryQuantity);
-
-    if (!entryProductId || Number.isNaN(quantity) || quantity <= 0) {
+    if (shouldContinue) {
+      clearProductForm();
       return;
     }
 
-    setProducts((currentProducts) =>
-      currentProducts.map((product) =>
-        product.id === entryProductId
-          ? {
-              ...product,
-              stockTotal: product.stockTotal + quantity,
-              available: product.available + quantity,
-              lastMovement: `Entrada registrada por ${quantity} ${product.unit || "unidades"}`,
-            }
-          : product,
-      ),
-    );
-
-    setEntryProductId(null);
-    setEntryQuantity("");
+    resetProductForm();
   };
 
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-5">
-      <section className={claseTarjeta("p-4 sm:p-5")}>
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-              Inventario operativo
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">
-              Productos, entradas y stock actualizado automaticamente
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              El alta define el producto. El stock se mueve por entradas, salidas, traspasos y ajustes.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsProductFormOpen(true)}
-            className={claseBotonPrimario("h-12 gap-2 px-5 text-sm")}
-          >
-            <Plus className="h-5 w-5" />
-            Nuevo producto
-          </button>
-        </div>
-
-        <div className="mt-5 grid gap-3 lg:grid-cols-4">
-          {[
-            "Agregar producto",
-            "Buscar producto",
-            "Entrada de producto",
-            "Stock automatico",
-          ].map((step, index) => (
-            <div key={step} className="rounded-lg border border-border/70 bg-muted/30 p-3">
-              <div className="flex items-center gap-3">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
-                  {index + 1}
-                </span>
-                <p className="text-sm font-medium text-foreground">{step}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
           { label: "Valor total del inventario", value: formatCurrency(inventoryValue), icon: CircleDollarSign },
-          { label: "Productos activos", value: String(activeProducts), icon: PackageCheck },
-          { label: "Bajo stock", value: String(lowStockProducts), icon: Boxes },
+          { label: "En rango", value: String(activeProducts), icon: PackageCheck },
+          { label: "Bajo minimo", value: String(lowStockProducts), icon: Boxes },
           { label: "Agotados", value: String(soldOutProducts), icon: ClipboardList },
+          { label: "Sobre maximo", value: String(overStockProducts), icon: Boxes },
         ].map((metric) => {
           const Icon = metric.icon;
 
@@ -259,6 +356,49 @@ export default function DashboardView() {
         })}
       </section>
 
+      <section className={claseTarjeta("p-4 sm:p-5")}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Control por categoria</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Minimos y maximos activos para alertas de inventario.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(["Agotado", "Bajo minimo", "En rango", "Sobre maximo"] as InventoryStatus[]).map((status) => (
+              <span
+                key={status}
+                className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 ${getStatusClassName(status)}`}
+              >
+                {status}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {categoryOptions.map((category) => {
+            const stockRule = categoryStockRules[category];
+
+            return (
+              <article key={category} className="rounded-lg border border-border/70 bg-muted/25 p-3">
+                <p className="text-sm font-semibold text-foreground">{category}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg bg-background/70 p-2">
+                    <p className="text-xs text-muted-foreground">Minimo</p>
+                    <p className="mt-1 font-semibold text-foreground">{stockRule.minStock}</p>
+                  </div>
+                  <div className="rounded-lg bg-background/70 p-2">
+                    <p className="text-xs text-muted-foreground">Maximo</p>
+                    <p className="mt-1 font-semibold text-foreground">{stockRule.maxStock}</p>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
       <section className={claseTarjeta("overflow-hidden")}>
         <div className="border-b border-border/70 p-4 sm:p-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -268,15 +408,25 @@ export default function DashboardView() {
                 Busca por ID, SKU, codigo de barras o nombre del producto.
               </p>
             </div>
-            <div className="relative w-full xl:max-w-xl">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                aria-label="Buscar en inventario"
-                placeholder="Buscar producto..."
-                className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-ring/20"
-              />
+            <div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-2xl">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  aria-label="Buscar en inventario"
+                  placeholder="Buscar producto..."
+                  className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-ring/20"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsProductFormOpen(true)}
+                className={claseBotonPrimario("h-11 gap-2 px-4 text-sm")}
+              >
+                <Plus className="h-4 w-4" />
+                Nuevo producto
+              </button>
             </div>
           </div>
 
@@ -294,7 +444,7 @@ export default function DashboardView() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1220px] border-collapse text-left">
+          <table className="w-full min-w-[1180px] border-collapse text-left">
             <thead className="bg-muted/45 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 {[
@@ -305,10 +455,10 @@ export default function DashboardView() {
                   "Categoria",
                   "Stock total",
                   "Disponible",
-                  "Costo promedio",
+                  "Min / Max",
                   "Precio venta",
                   "Estatus",
-                  "Acciones",
+                  "Alerta",
                 ].map((heading) => (
                   <th key={heading} className="whitespace-nowrap px-4 py-3 font-semibold">
                     {heading}
@@ -319,6 +469,7 @@ export default function DashboardView() {
             <tbody className="divide-y divide-border/70">
               {filteredProducts.map((product) => {
                 const status = getStatus(product);
+                const stockAlert = getStockAlert(product, status);
 
                 return (
                   <tr key={product.id} className="bg-card transition hover:bg-muted/30">
@@ -356,7 +507,7 @@ export default function DashboardView() {
                       {product.available}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
-                      {formatCurrency(product.averageCost)}
+                      {product.minStock} / {product.maxStock}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-foreground">
                       {formatCurrency(product.salePrice)}
@@ -366,23 +517,8 @@ export default function DashboardView() {
                         {status}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setEntryProductId(product.id)}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
-                        >
-                          <ArrowDownToLine className="h-4 w-4" />
-                          Entrada
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-muted-foreground transition hover:border-primary/50 hover:text-foreground"
-                        >
-                          Kardex
-                        </button>
-                      </div>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-muted-foreground">
+                      {stockAlert}
                     </td>
                   </tr>
                 );
@@ -443,24 +579,6 @@ export default function DashboardView() {
         </article>
       </section>
 
-      <section className={claseTarjeta("p-5")}>
-        <h3 className="text-base font-semibold text-foreground">Flujo de entrada de productos</h3>
-        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {[
-            "Compra genera orden",
-            "Llega mercancia",
-            "Almacen recibe",
-            "Captura cantidades",
-            "Kardex automatico",
-          ].map((step, index) => (
-            <div key={step} className="rounded-lg border border-border/70 bg-muted/30 p-3">
-              <p className="text-xs font-semibold text-primary">Paso {index + 1}</p>
-              <p className="mt-1 text-sm font-medium text-foreground">{step}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {isProductFormOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/55">
           <form
@@ -483,40 +601,196 @@ export default function DashboardView() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                {formFields.map((field) => (
-                  <label key={field.name} className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>{field.label}</span>
+              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Codigo de barras</span>
                     <input
-                      required={field.name !== "imageUrl"}
-                      value={String(productForm[field.name])}
-                      onChange={(event) => updateProductForm(field.name, event.target.value)}
-                      placeholder={field.placeholder}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      ref={barcodeInputRef}
+                      required
+                      value={productForm.barcode}
+                      onChange={(event) => updateProductForm("barcode", event.target.value)}
+                      onKeyDown={handleBarcodeKeyDown}
+                      placeholder="Escanea o escribe codigo"
+                      className="h-11 w-full rounded-lg border border-input bg-background px-3 font-mono text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
                   </label>
-                ))}
+                  <button
+                    type="button"
+                    onClick={suggestProductFromBarcode}
+                    className={claseBotonPrimario("mt-auto h-11 px-4 text-sm")}
+                  >
+                    Escanear
+                  </button>
+                </div>
+                <p className="mt-3 text-xs font-medium text-muted-foreground">
+                  ID automatico: <span className="font-mono text-foreground">{productForm.id || nextProductId}</span>
+                </p>
+              </div>
 
-                {numericFields.map((field) => (
-                  <label key={field.name} className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>{field.label}</span>
+              <div className="mt-4 grid gap-4">
+                <label className="space-y-1.5 text-sm font-medium text-foreground">
+                  <span>Nombre producto</span>
+                  <input
+                    ref={nameInputRef}
+                    required
+                    value={productForm.name}
+                    onChange={(event) => updateProductForm("name", event.target.value)}
+                    placeholder="Nombre sugerido o captura manual"
+                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  />
+                </label>
+
+                <div className="grid gap-4 md:grid-cols-4">
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Categoria</span>
+                    <select
+                      required
+                      value={productForm.category}
+                      onChange={(event) => updateProductCategory(event.target.value as CategoryOption)}
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    >
+                      {categoryOptions.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Marca</span>
+                    <select
+                      required
+                      value={productForm.brand}
+                      onChange={(event) => updateProductForm("brand", event.target.value)}
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    >
+                      {brandOptions.map((brand) => (
+                        <option key={brand} value={brand}>
+                          {brand}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Unidad</span>
+                    <select
+                      required
+                      value={productForm.unit}
+                      onChange={(event) => updateProductForm("unit", event.target.value)}
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    >
+                      {unitOptions.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {unit}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Impuestos</span>
+                    <select
+                      value={productForm.taxRate}
+                      onChange={(event) => updateProductForm("taxRate", event.target.value)}
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    >
+                      {taxOptions.map((tax) => (
+                        <option key={`${tax.label}-${tax.value}`} value={tax.value}>
+                          {tax.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Precio</span>
                     <input
                       required
                       type="number"
                       min="0"
                       step="0.01"
-                      value={Number(productForm[field.name]) || ""}
-                      onChange={(event) => updateProductForm(field.name, event.target.value)}
-                      placeholder={field.placeholder}
+                      value={productForm.salePrice || ""}
+                      onChange={(event) => updateProductForm("salePrice", event.target.value)}
+                      placeholder="$0.00"
                       className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
                   </label>
-                ))}
+
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Stock minimo</span>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={productForm.minStock || ""}
+                      onChange={(event) => updateProductForm("minStock", event.target.value)}
+                      placeholder="0"
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    />
+                  </label>
+
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Stock maximo</span>
+                    <input
+                      required
+                      type="number"
+                      min={productForm.minStock}
+                      step="1"
+                      value={productForm.maxStock || ""}
+                      onChange={(event) => updateProductForm("maxStock", event.target.value)}
+                      placeholder="0"
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    />
+                  </label>
+                </div>
+
+                <div className="space-y-1.5 text-sm font-medium text-foreground">
+                  <span>Imagen</span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
+                    >
+                      <Camera className="h-4 w-4" />
+                      Camara
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => uploadInputRef.current?.click()}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
+                    >
+                      <FolderUp className="h-4 w-4" />
+                      Subir
+                    </button>
+                  </div>
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) => updateProductImage(event.target.files?.[0] ?? null)}
+                    className="hidden"
+                  />
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => updateProductImage(event.target.files?.[0] ?? null)}
+                    className="hidden"
+                  />
+                </div>
               </div>
 
               <div className="mt-5 rounded-lg border border-border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
-                El stock no se captura aqui. Se actualiza por entradas, salidas, traspasos o ajustes
-                para conservar trazabilidad y kardex.
+                Usa TAB para avanzar y ENTER en el codigo de barras para sugerir datos. Guardar y continuar
+                mantiene categoria, marca, unidad, impuestos y rangos de stock.
               </div>
             </div>
 
@@ -528,62 +802,21 @@ export default function DashboardView() {
               >
                 Cancelar
               </button>
-              <button type="submit" className={claseBotonPrimario("h-10 gap-2 px-4 text-sm")}>
-                <Plus className="h-4 w-4" />
-                Guardar producto
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {entryProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <form onSubmit={handleEntrySubmit} className={claseTarjeta("w-full max-w-md p-5")}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Entrada de producto</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{entryProduct.name}</p>
-              </div>
               <button
-                type="button"
-                onClick={() => setEntryProductId(null)}
-                aria-label="Cerrar entrada"
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                type="submit"
+                name="productAction"
+                value="continue"
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
               >
-                <X className="h-4 w-4" />
+                Guardar y continuar
               </button>
-            </div>
-
-            <div className="mt-5 rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-              Flujo esperado: buscar orden de compra, cargar productos esperados, capturar cantidades
-              recibidas, validar diferencias, actualizar stock y generar kardex.
-            </div>
-
-            <label className="mt-5 block space-y-1.5 text-sm font-medium text-foreground">
-              <span>Cantidad recibida</span>
-              <input
-                required
-                type="number"
-                min="1"
-                value={entryQuantity}
-                onChange={(event) => setEntryQuantity(event.target.value)}
-                placeholder="0"
-                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-              />
-            </label>
-
-            <div className="mt-5 flex justify-end gap-3">
               <button
-                type="button"
-                onClick={() => setEntryProductId(null)}
-                className="h-10 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition hover:bg-muted"
+                type="submit"
+                name="productAction"
+                value="save"
+                className={claseBotonPrimario("h-10 px-4 text-sm")}
               >
-                Cancelar
-              </button>
-              <button type="submit" className={claseBotonPrimario("h-10 gap-2 px-4 text-sm")}>
-                <ArrowDownToLine className="h-4 w-4" />
-                Actualizar stock
+                Guardar
               </button>
             </div>
           </form>

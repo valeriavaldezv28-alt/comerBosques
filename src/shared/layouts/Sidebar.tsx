@@ -5,12 +5,7 @@ import {
   LogOut,
   PackageMinus,
   PackagePlus,
-  Repeat2,
-  SlidersHorizontal,
-  Settings,
-  ShoppingCart,
   Store,
-  Truck,
   UsersRound,
   X,
 } from "lucide-react";
@@ -45,45 +40,15 @@ const menuItems = [
     path: ROUTE_PATHS.dashboard,
   },
   {
-    key: "transfers",
-    icon: Repeat2,
-    label: "Traspasos",
-    path: ROUTE_PATHS.dashboard,
-  },
-  {
-    key: "adjustments",
-    icon: SlidersHorizontal,
-    label: "Ajustes",
-    path: ROUTE_PATHS.dashboard,
-  },
-  {
-    key: "purchases",
-    icon: ShoppingCart,
-    label: "Compras",
-    path: ROUTE_PATHS.dashboard,
-  },
-  {
     key: "sales",
     icon: Store,
     label: "Ventas",
     path: ROUTE_PATHS.dashboard,
   },
   {
-    key: "suppliers",
-    icon: Truck,
-    label: "Proveedores",
-    path: ROUTE_PATHS.dashboard,
-  },
-  {
     key: "reports",
     icon: BarChart3,
     label: "Reportes",
-    path: ROUTE_PATHS.dashboard,
-  },
-  {
-    key: "settings",
-    icon: Settings,
-    label: "Configuracion",
     path: ROUTE_PATHS.dashboard,
   },
 ] as const;
