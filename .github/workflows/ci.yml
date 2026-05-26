@@ -24,7 +24,7 @@ jobs:
     steps:
       # Descarga el codigo del repositorio para poder ejecutar el job.
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Configura Node.js en version LTS e habilita cache de npm
       # para acelerar instalaciones en ejecuciones futuras.
