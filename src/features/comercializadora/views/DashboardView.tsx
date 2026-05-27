@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { productsStorageKey } from "@/features/comercializadora/storage";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
 type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
@@ -67,8 +68,6 @@ const emptyProductForm: ProductForm = {
 };
 
 const quickFilters = ["Categoria", "Marca", "Estatus", "Nivel de stock"];
-const productsStorageKey = "comercializadora-bosques-products";
-
 const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
   "7501023501128": {
     name: "Aceite vegetal 1 L",

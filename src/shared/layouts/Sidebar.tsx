@@ -1,10 +1,12 @@
 import {
   BarChart3,
   Boxes,
+  CreditCard,
   HelpCircle,
   LogOut,
   PackageMinus,
   PackagePlus,
+  ShoppingCart,
   Store,
   UsersRound,
   X,
@@ -20,7 +22,7 @@ type BarraLateralProps = {
   onNavigate?: () => void;
 };
 
-const menuItems = [
+const adminMenuItems = [
   {
     key: "inventory",
     icon: Boxes,
@@ -53,6 +55,27 @@ const menuItems = [
   },
 ] as const;
 
+const customerMenuItems = [
+  {
+    key: "catalog",
+    icon: Store,
+    label: "Catalogo",
+    path: ROUTE_PATHS.cliente,
+  },
+  {
+    key: "cart",
+    icon: ShoppingCart,
+    label: "Mi pedido",
+    path: `${ROUTE_PATHS.cliente}#pedido`,
+  },
+  {
+    key: "payment",
+    icon: CreditCard,
+    label: "Pago",
+    path: `${ROUTE_PATHS.cliente}#pago`,
+  },
+] as const;
+
 export const BarraLateral = ({
   mode,
   isOpen = false,
@@ -61,6 +84,8 @@ export const BarraLateral = ({
 }: BarraLateralProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const isCustomerProfile = location.pathname === ROUTE_PATHS.cliente;
+  const menuItems = isCustomerProfile ? customerMenuItems : adminMenuItems;
 
   useEffect(() => {
     if (mode !== "mobile" || !isOpen) {
@@ -104,12 +129,15 @@ export const BarraLateral = ({
       </div>
 
       <p className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Operacion
+        {isCustomerProfile ? "Cliente" : "Operacion"}
       </p>
 
       <nav className="space-y-1">
         {menuItems.map((item) => {
-          const active = location.pathname === item.path && item.key === "inventory";
+          const [itemPath, itemHash = ""] = item.path.split("#");
+          const active = isCustomerProfile
+            ? location.pathname === itemPath && location.hash === (itemHash ? `#${itemHash}` : "")
+            : location.pathname === itemPath && item.key === "inventory";
           const Icon = item.icon;
 
           return (
@@ -134,10 +162,20 @@ export const BarraLateral = ({
         <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/70 p-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-sidebar-accent-foreground">
             <UsersRound className="h-4 w-4" />
-            Almacen central
+            {isCustomerProfile ? "Perfil cliente" : "Almacen central"}
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Recepcion y surtido activos</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            {isCustomerProfile ? "Compra publica y pago" : "Recepcion y surtido activos"}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={() => manejarNavegacion(isCustomerProfile ? ROUTE_PATHS.dashboard : ROUTE_PATHS.cliente)}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <Store className="h-4 w-4" />
+          <span>{isCustomerProfile ? "Ir a administracion" : "Vista cliente"}</span>
+        </button>
         <button
           type="button"
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
