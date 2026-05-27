@@ -131,13 +131,8 @@ export const BarraLateral = ({
         )}
       </div>
 
-<<<<<<< HEAD
       <p className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {isCustomerProfile ? "Cliente" : "Operacion"}
-=======
-      <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-        Operacion
->>>>>>> affa90c10bff168eee924e139755ba44c54a4187
       </p>
 
       <nav className="space-y-1.5">
@@ -180,35 +175,24 @@ export const BarraLateral = ({
       <div className="mt-auto space-y-2 pt-8">
         <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/70 p-3 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-semibold text-sidebar-accent-foreground">
-<<<<<<< HEAD
-            <UsersRound className="h-4 w-4" />
+            <UsersRound className="h-[18px] w-[18px] text-primary" />
             {isCustomerProfile ? "Perfil cliente" : "Almacen central"}
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <p className="mt-1 text-xs font-medium leading-5 text-muted-foreground">
             {isCustomerProfile ? "Compra publica y pago" : "Recepcion y surtido activos"}
           </p>
         </div>
         <button
           type="button"
           onClick={() => manejarNavegacion(isCustomerProfile ? ROUTE_PATHS.dashboard : ROUTE_PATHS.cliente)}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           <Store className="h-4 w-4" />
           <span>{isCustomerProfile ? "Ir a administracion" : "Vista cliente"}</span>
         </button>
         <button
           type="button"
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-=======
-            <UsersRound className="h-[18px] w-[18px] text-primary" />
-            Almacen central
-          </div>
-          <p className="mt-1 text-xs font-medium leading-5 text-muted-foreground">Recepcion y surtido activos</p>
-        </div>
-        <button
-          type="button"
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
->>>>>>> affa90c10bff168eee924e139755ba44c54a4187
         >
           <HelpCircle className="h-[18px] w-[18px]" />
           <span>Ayuda</span>
