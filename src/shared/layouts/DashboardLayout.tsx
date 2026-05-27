@@ -30,8 +30,8 @@ export const DashboardLayout = ({ children }: { children?: ReactNode }) => {
       <div className="flex min-w-0 flex-1 flex-col">
         <BarraSuperior isSidebarOpen={isSidebarOpen} onMenuClick={toggleSidebar} />
 
-        <main className="flex-1 space-y-5 p-4 lg:p-6">{children ?? <Outlet />}</main>
-        <AppFooter className="px-4 pb-5 lg:px-6" />
+        <main className="flex-1 space-y-4 p-3 sm:p-4 lg:p-5">{children ?? <Outlet />}</main>
+        <AppFooter className="px-4 pb-4 lg:px-5" />
       </div>
     </div>
   );

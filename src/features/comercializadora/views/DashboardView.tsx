@@ -1,22 +1,31 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
+  Activity,
+  AlertTriangle,
   ArrowUpRight,
   Boxes,
   Camera,
+  ChevronDown,
   CircleDollarSign,
   ClipboardList,
   FolderUp,
+  History,
   ImagePlus,
+  Layers3,
+  MoreHorizontal,
   PackageCheck,
+  PackagePlus,
   Pencil,
   Plus,
   Search,
+  ShoppingCart,
   Trash2,
   X,
 } from "lucide-react";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
 type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
+type StockUnit = "cajas" | "kilos";
 
 type InventoryProduct = {
   id: string;
@@ -24,9 +33,11 @@ type InventoryProduct = {
   name: string;
   category: CategoryOption;
   brand: string;
-  unit: UnitOption;
+  stockUnit: StockUnit;
+  boxes: number;
+  kilos: number;
   minStock: number;
-  maxStock: number;
+  maxStock?: number;
   salePrice: number;
   taxRate: number;
   imageUrl: string;
@@ -41,14 +52,11 @@ const categoryOptions = ["Aceites", "Bebidas", "Abarrotes", "Limpieza"] as const
 type CategoryOption = (typeof categoryOptions)[number];
 
 const brandOptions = ["Sin marca", "Nutrioli", "Coca-Cola", "Great Value", "Fabuloso"] as const;
-type UnitOption = string;
-const unitOptions: UnitOption[] = Array.from({ length: 50 }, (_, index) => String(index + 1));
+const stockUnitOptions: StockUnit[] = ["cajas", "kilos"];
 
-const categoryStockRules: Record<CategoryOption, { minStock: number; maxStock: number }> = {
-  Aceites: { minStock: 24, maxStock: 120 },
-  Bebidas: { minStock: 48, maxStock: 240 },
-  Abarrotes: { minStock: 30, maxStock: 180 },
-  Limpieza: { minStock: 18, maxStock: 90 },
+const stockMinimumByUnit: Record<StockUnit, number> = {
+  cajas: 5,
+  kilos: 50,
 };
 
 const emptyProductForm: ProductForm = {
@@ -57,9 +65,11 @@ const emptyProductForm: ProductForm = {
   name: "",
   category: "Aceites",
   brand: "Sin marca",
-  unit: "1",
-  minStock: categoryStockRules.Aceites.minStock,
-  maxStock: categoryStockRules.Aceites.maxStock,
+  stockUnit: "cajas",
+  boxes: 0,
+  kilos: 0,
+  minStock: stockMinimumByUnit.cajas,
+  maxStock: 0,
   salePrice: 0,
   taxRate: 16,
   imageUrl: "",
@@ -74,30 +84,27 @@ const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
     name: "Aceite vegetal 1 L",
     category: "Aceites",
     brand: "Nutrioli",
-    unit: "1",
+    stockUnit: "cajas",
     salePrice: 38.9,
-    minStock: 24,
-    maxStock: 120,
+    minStock: stockMinimumByUnit.cajas,
     taxRate: 16,
   },
   "7501055300072": {
     name: "Refresco cola 600 ml",
     category: "Bebidas",
     brand: "Coca-Cola",
-    unit: "1",
+    stockUnit: "cajas",
     salePrice: 18,
-    minStock: 48,
-    maxStock: 240,
+    minStock: stockMinimumByUnit.cajas,
     taxRate: 16,
   },
   "7501035910017": {
     name: "Limpiador multiusos 1 L",
     category: "Limpieza",
     brand: "Fabuloso",
-    unit: "1",
+    stockUnit: "cajas",
     salePrice: 31,
-    minStock: 18,
-    maxStock: 90,
+    minStock: stockMinimumByUnit.cajas,
     taxRate: 16,
   },
 };
@@ -109,12 +116,19 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value);
 
+const getStockQuantity = (product: Pick<InventoryProduct, "stockUnit" | "boxes" | "kilos" | "stockTotal">) =>
+  product.stockUnit === "kilos" ? product.kilos || product.stockTotal : product.boxes || product.stockTotal;
+
+const getMinimumStock = (stockUnit: StockUnit) => stockMinimumByUnit[stockUnit];
+
 const getStatus = (product: InventoryProduct): InventoryStatus => {
-  if (product.stockTotal <= 0) {
+  const stockQuantity = getStockQuantity(product);
+
+  if (stockQuantity <= 0) {
     return "agotado";
   }
 
-  if (product.stockTotal < 50) {
+  if (stockQuantity <= getMinimumStock(product.stockUnit)) {
     return "poca disponibilidad";
   }
 
@@ -133,16 +147,48 @@ const getStatusClassName = (status: InventoryStatus) => {
   return "bg-destructive/10 text-destructive ring-destructive/25";
 };
 
-const getStockAlert = (status: InventoryStatus) => {
+const getStatusDotClassName = (status: InventoryStatus) => {
+  if (status === "disponible") {
+    return "bg-success";
+  }
+
+  if (status === "poca disponibilidad") {
+    return "bg-amber-500";
+  }
+
+  return "bg-destructive";
+};
+
+const getStockAlert = (product: InventoryProduct, status: InventoryStatus) => {
   if (status === "agotado") {
     return "Sin existencias";
   }
 
   if (status === "poca disponibilidad") {
-    return "Stock menor a 50";
+    return `Alerta: ${getMinimumStock(product.stockUnit)} ${product.stockUnit} o menos`;
   }
 
   return "Stock suficiente";
+};
+
+const formatStockQuantity = (product: InventoryProduct) =>
+  `${getStockQuantity(product)} ${product.stockUnit}`;
+
+const normalizeProduct = (product: InventoryProduct & { unit?: string }): InventoryProduct => {
+  const stockUnit = product.stockUnit ?? "cajas";
+  const stockTotal = product.stockTotal ?? 0;
+  const boxes = product.boxes ?? (stockUnit === "cajas" ? Number(product.unit) || stockTotal : 0);
+  const kilos = product.kilos ?? (stockUnit === "kilos" ? stockTotal : 0);
+
+  return {
+    ...product,
+    stockUnit,
+    boxes,
+    kilos,
+    minStock: getMinimumStock(stockUnit),
+    stockTotal: stockUnit === "kilos" ? kilos : boxes,
+    available: stockUnit === "kilos" ? kilos : boxes,
+  };
 };
 
 const getNextProductId = (products: InventoryProduct[]) => {
@@ -162,7 +208,7 @@ const loadStoredProducts = (): InventoryProduct[] => {
 
   try {
     const storedProducts = window.localStorage.getItem(productsStorageKey);
-    return storedProducts ? (JSON.parse(storedProducts) as InventoryProduct[]) : [];
+    return storedProducts ? (JSON.parse(storedProducts) as InventoryProduct[]).map(normalizeProduct) : [];
   } catch {
     return [];
   }
@@ -215,28 +261,34 @@ export default function DashboardView() {
   const availableProducts = products.filter((product) => getStatus(product) === "disponible").length;
   const lowAvailabilityProducts = products.filter((product) => getStatus(product) === "poca disponibilidad").length;
   const soldOutProducts = products.filter((product) => getStatus(product) === "agotado").length;
-  const inventoryValue = products.reduce(
-    (total, product) => total + product.stockTotal * product.salePrice,
-    0,
-  );
+  const inventoryValue = products.reduce((total, product) => total + getStockQuantity(product) * product.salePrice, 0);
+  const lowStockProducts = products.filter((product) => getStatus(product) !== "disponible");
+  const recentProducts = products.slice(0, 4);
 
   const updateProductForm = (field: keyof ProductForm, value: string) => {
     setProductForm((currentForm) => ({
       ...currentForm,
-      [field]: ["minStock", "maxStock", "salePrice", "taxRate", "stockTotal"].includes(field)
+      [field]: ["boxes", "kilos", "minStock", "maxStock", "salePrice", "taxRate", "stockTotal"].includes(field)
         ? Number(value)
         : value,
     }));
   };
 
   const updateProductCategory = (category: CategoryOption) => {
-    const stockRule = categoryStockRules[category];
-
     setProductForm((currentForm) => ({
       ...currentForm,
       category,
-      minStock: stockRule.minStock,
-      maxStock: stockRule.maxStock,
+    }));
+  };
+
+  const updateStockUnit = (stockUnit: StockUnit) => {
+    setProductForm((currentForm) => ({
+      ...currentForm,
+      stockUnit,
+      boxes: stockUnit === "kilos" ? 0 : currentForm.boxes,
+      kilos: stockUnit === "cajas" ? 0 : currentForm.kilos,
+      minStock: getMinimumStock(stockUnit),
+      stockTotal: stockUnit === "kilos" ? currentForm.kilos : currentForm.boxes,
     }));
   };
 
@@ -259,10 +311,9 @@ export default function DashboardView() {
       name: suggestion.name ?? currentForm.name,
       category: suggestion.category ?? currentForm.category,
       brand: suggestion.brand ?? currentForm.brand,
-      unit: suggestion.unit ?? currentForm.unit,
+      stockUnit: suggestion.stockUnit ?? currentForm.stockUnit,
       salePrice: suggestion.salePrice ?? currentForm.salePrice,
-      minStock: suggestion.minStock ?? currentForm.minStock,
-      maxStock: suggestion.maxStock ?? currentForm.maxStock,
+      minStock: suggestion.stockUnit ? getMinimumStock(suggestion.stockUnit) : currentForm.minStock,
       taxRate: suggestion.taxRate ?? currentForm.taxRate,
       imageUrl: suggestion.imageUrl ?? currentForm.imageUrl,
     }));
@@ -301,9 +352,10 @@ export default function DashboardView() {
       id: nextId,
       category: productForm.category,
       brand: productForm.brand,
-      unit: productForm.unit,
-      minStock: productForm.minStock,
-      maxStock: productForm.maxStock,
+      stockUnit: productForm.stockUnit,
+      boxes: 0,
+      kilos: 0,
+      minStock: getMinimumStock(productForm.stockUnit),
     });
     window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
   };
@@ -325,13 +377,15 @@ export default function DashboardView() {
       name: product.name,
       category: product.category,
       brand: product.brand,
-      unit: product.unit,
-      minStock: product.minStock,
-      maxStock: product.maxStock,
+      stockUnit: product.stockUnit,
+      boxes: product.boxes,
+      kilos: product.kilos,
+      minStock: getMinimumStock(product.stockUnit),
+      maxStock: product.maxStock ?? 0,
       salePrice: product.salePrice,
       taxRate: product.taxRate,
       imageUrl: product.imageUrl,
-      stockTotal: product.stockTotal,
+      stockTotal: getStockQuantity(product),
     });
     setIsProductFormOpen(true);
   };
@@ -353,6 +407,8 @@ export default function DashboardView() {
     const shouldContinue = submitter?.value === "continue";
 
     if (editingProductId) {
+      const stockTotal = productForm.stockUnit === "kilos" ? productForm.kilos : productForm.boxes;
+
       setProducts((currentProducts) =>
         currentProducts.map((product) =>
           product.id === editingProductId
@@ -360,7 +416,9 @@ export default function DashboardView() {
                 ...product,
                 ...productForm,
                 id: editingProductId,
-                available: productForm.stockTotal,
+                minStock: getMinimumStock(productForm.stockUnit),
+                stockTotal,
+                available: stockTotal,
               }
             : product,
         ),
@@ -370,8 +428,9 @@ export default function DashboardView() {
     }
 
     const createdProductId = getNextProductId(products);
+    const stockTotal = productForm.stockUnit === "kilos" ? productForm.kilos : productForm.boxes;
     const nextAvailableId = getNextProductId([
-      { ...productForm, id: createdProductId, available: productForm.stockTotal },
+      { ...productForm, id: createdProductId, minStock: getMinimumStock(productForm.stockUnit), stockTotal, available: stockTotal },
       ...products,
     ]);
 
@@ -382,7 +441,9 @@ export default function DashboardView() {
         {
           ...productForm,
           id: newProductId,
-          available: productForm.stockTotal,
+          minStock: getMinimumStock(productForm.stockUnit),
+          stockTotal,
+          available: stockTotal,
           lastMovement: "Producto creado con stock inicial",
         },
         ...currentProducts,
@@ -398,21 +459,58 @@ export default function DashboardView() {
   };
 
   const metrics = [
-    { label: "Valor total del inventario", value: formatCurrency(inventoryValue), icon: CircleDollarSign },
-    { label: "Disponibles", value: String(availableProducts), icon: PackageCheck },
-    { label: "Poca disponibilidad", value: String(lowAvailabilityProducts), icon: Boxes },
-    { label: "Agotados", value: String(soldOutProducts), icon: ClipboardList },
+    {
+      label: "Total productos",
+      value: String(products.length),
+      detail: "SKUs activos",
+      icon: Layers3,
+      tone: "text-primary bg-primary/10 ring-primary/15",
+      valueClassName: "text-3xl",
+    },
+    {
+      label: "Disponibles",
+      value: String(availableProducts),
+      detail: "Listos para venta",
+      icon: PackageCheck,
+      tone: "text-success bg-success/10 ring-success/20",
+      valueClassName: "text-3xl",
+    },
+    {
+      label: "Stock bajo",
+      value: String(lowAvailabilityProducts),
+      detail: "Requieren revision",
+      icon: AlertTriangle,
+      tone: "text-amber-700 bg-amber-100 ring-amber-300/60 dark:text-amber-200 dark:bg-amber-400/15",
+      valueClassName: "text-3xl",
+    },
+    {
+      label: "Agotados",
+      value: String(soldOutProducts),
+      detail: "Sin existencia",
+      icon: ClipboardList,
+      tone: "text-destructive bg-destructive/10 ring-destructive/20",
+      valueClassName: "text-3xl",
+    },
+    {
+      label: "Valor inventario",
+      value: formatCurrency(inventoryValue),
+      detail: "Costo estimado",
+      icon: CircleDollarSign,
+      tone: "text-info bg-info/10 ring-info/20",
+      valueClassName: "text-2xl leading-tight",
+    },
   ];
 
   return (
-    <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4">
       <section className={claseTarjeta("overflow-hidden")}>
-        <div className="border-b border-border/70 p-4 sm:p-5">
+        <div className="border-b border-border/70 bg-card/95 p-4 sm:p-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <h3 className="text-base font-semibold text-foreground">Inventario principal</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Busca por ID, SKU, codigo de barras o nombre del producto.
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">Centro operativo</p>
+              <h3 className="mt-1 text-xl font-bold text-foreground">Inventario principal</h3>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                Lectura rapida de stock, alertas y movimientos del almacen.
               </p>
             </div>
             <div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-2xl">
@@ -422,14 +520,14 @@ export default function DashboardView() {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   aria-label="Buscar en inventario"
-                  placeholder="Buscar producto..."
-                  className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  placeholder="Buscar por producto, SKU o codigo..."
+                  className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm font-medium outline-none transition placeholder:text-muted-foreground/80 focus:border-primary focus:ring-2 focus:ring-ring/20"
                 />
               </div>
               <button
                 type="button"
                 onClick={openNewProductForm}
-                className={claseBotonPrimario("h-11 gap-2 px-4 text-sm")}
+                className={claseBotonPrimario("h-11 gap-2 px-5 text-sm font-semibold shadow-lg shadow-primary/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25")}
               >
                 <Plus className="h-4 w-4" />
                 Nuevo producto
@@ -442,152 +540,31 @@ export default function DashboardView() {
               <button
                 key={filter}
                 type="button"
-                className="shrink-0 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-primary/50 hover:text-foreground"
+                className="shrink-0 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
               >
                 {filter}
               </button>
             ))}
           </div>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1260px] border-collapse text-left">
-            <thead className="bg-muted/45 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                {[
-                  "Imagen",
-                  "ID / Codigo",
-                  "Codigo de barras",
-                  "Nombre del producto",
-                  "Categoria",
-                  "Stock total",
-                  "Disponible",
-                  "Min / Max",
-                  "Precio venta",
-                  "Estatus",
-                  "Alerta",
-                  "Acciones",
-                ].map((heading) => (
-                  <th key={heading} className="whitespace-nowrap px-4 py-3 font-semibold">
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/70">
-              {filteredProducts.map((product) => {
-                const status = getStatus(product);
-                const stockAlert = getStockAlert(status);
-
-                return (
-                  <tr key={product.id} className="bg-card transition hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      {product.imageUrl ? (
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="h-11 w-11 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <ImagePlus className="h-5 w-5" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-foreground">{product.id}</p>
-                      <p className="text-xs text-muted-foreground">SKU-{product.id}</p>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-sm text-muted-foreground">
-                      {product.barcode}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-foreground">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">{product.brand || "Sin marca"}</p>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
-                      {product.category}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-foreground">
-                      {product.stockTotal}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-foreground">
-                      {product.available}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
-                      {product.minStock} / {product.maxStock}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-foreground">
-                      {formatCurrency(product.salePrice)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <span className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 ${getStatusClassName(status)}`}>
-                        {status}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-muted-foreground">
-                      {stockAlert}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEditProduct(product)}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 text-sm font-medium text-destructive transition hover:bg-destructive/15"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredProducts.length === 0 && (
-          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Boxes className="h-7 w-7" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold text-foreground">Inventario sin productos</h3>
-            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Agrega el primer producto al catalogo y captura su stock inicial.
-            </p>
-            <button
-              type="button"
-              onClick={openNewProductForm}
-              className={claseBotonPrimario("mt-5 h-11 gap-2 px-4 text-sm")}
-            >
-              <Plus className="h-4 w-4" />
-              Nuevo producto
-            </button>
-          </div>
-        )}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => {
           const Icon = metric.icon;
 
           return (
-            <article key={metric.label} className={claseTarjeta("p-4")}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">{metric.label}</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{metric.value}</p>
+            <article
+              key={metric.label}
+              className={claseTarjeta("p-4 transition hover:-translate-y-0.5 hover:shadow-xl")}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+                  <p className={`mt-2 break-words font-bold text-foreground ${metric.valueClassName}`}>{metric.value}</p>
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">{metric.detail}</p>
                 </div>
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ring-1 ${metric.tone}`}>
                   <Icon className="h-5 w-5" />
                 </span>
               </div>
@@ -596,33 +573,256 @@ export default function DashboardView() {
         })}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_1fr_1fr]">
-        <article className={claseTarjeta("p-5")}>
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-foreground">Ventas del dia</h3>
+      <section className="grid gap-3 xl:grid-cols-[1.1fr_1fr_1fr]">
+        <article className={claseTarjeta("p-4")}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700 ring-1 ring-amber-300/60 dark:bg-amber-400/15 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Alertas de stock</h3>
+                <p className="text-xs font-medium text-muted-foreground">{lowStockProducts.length} productos requieren accion</p>
+              </div>
+            </div>
             <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
           </div>
-          <p className="mt-4 text-3xl font-semibold text-foreground">$0.00</p>
-          <p className="mt-1 text-sm text-muted-foreground">Se alimenta desde ventas registradas.</p>
+          <div className="mt-3 space-y-2">
+            {lowStockProducts.slice(0, 3).map((product) => (
+              <div key={product.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
+                  <p className="text-xs font-medium text-muted-foreground">{getStockAlert(product, getStatus(product))}</p>
+                </div>
+                <span className="shrink-0 text-sm font-bold text-foreground">{formatStockQuantity(product)}</span>
+              </div>
+            ))}
+            {lowStockProducts.length === 0 && (
+              <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
+                Sin alertas criticas por ahora.
+              </p>
+            )}
+          </div>
         </article>
 
-        <article className={claseTarjeta("p-5")}>
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-foreground">Productos mas vendidos</h3>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+        <article className={claseTarjeta("p-4")}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
+                <History className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Movimientos recientes</h3>
+                <p className="text-xs font-medium text-muted-foreground">Ultimas entradas al catalogo</p>
+              </div>
+            </div>
+            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="mt-5 rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
-            Sin datos de venta todavia.
+          <div className="mt-3 space-y-2">
+            {recentProducts.length > 0 ? (
+              recentProducts.map((product) => (
+                <div key={product.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-semibold text-foreground">{product.name}</span>
+                  <span className="shrink-0 text-xs font-medium text-muted-foreground">{formatStockQuantity(product)}</span>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
+                Aun no hay movimientos.
+              </p>
+            )}
           </div>
         </article>
 
-        <article className={claseTarjeta("p-5")}>
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-foreground">Ventas por categoria</h3>
+        <article className={claseTarjeta("p-4")}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-info/10 text-info ring-1 ring-info/15">
+                <Activity className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Actividad operativa</h3>
+                <p className="text-xs font-medium text-muted-foreground">Entradas, ventas y ajustes</p>
+              </div>
+            </div>
             <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="mt-5 rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
-            Se mostrara cuando existan movimientos.
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            {[
+              { label: "Entradas", value: "0", icon: PackagePlus },
+              { label: "Ventas", value: "0", icon: ShoppingCart },
+              { label: "Ajustes", value: "0", icon: ClipboardList },
+            ].map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <div key={item.label} className="rounded-lg border border-border/70 bg-muted/25 px-2 py-2">
+                  <Icon className="mx-auto h-4 w-4 text-muted-foreground" />
+                  <p className="mt-1 text-lg font-bold text-foreground">{item.value}</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground">{item.label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+      </section>
+
+      <section className={claseTarjeta("overflow-hidden")}>
+        <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
+          <div>
+            <h3 className="text-base font-bold text-foreground">Tabla de inventario</h3>
+            <p className="text-xs font-medium text-muted-foreground">Producto, stock y alertas como prioridad visual.</p>
+          </div>
+          <span className="rounded-lg bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+            {filteredProducts.length} visibles
+          </span>
+        </div>
+
+        {filteredProducts.length === 0 ? (
+          <div className="m-3 flex flex-col gap-3 rounded-lg border border-dashed border-border bg-muted/25 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Boxes className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Inventario sin productos</h3>
+                <p className="text-xs font-medium text-muted-foreground">Agrega el primer SKU para iniciar operaciones.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={openNewProductForm}
+              className={claseBotonPrimario("h-10 shrink-0 gap-2 px-4 text-sm font-semibold")}
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo producto
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-left">
+              <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="sticky left-0 z-10 w-[360px] bg-muted/95 px-4 py-3 font-bold backdrop-blur">Producto</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-bold">Stock</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-bold">Estado</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-bold">Alerta</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-bold">Detalles</th>
+                  <th className="sticky right-0 z-10 bg-muted/95 px-4 py-3 text-right font-bold backdrop-blur">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {filteredProducts.map((product) => {
+                  const status = getStatus(product);
+                  const stockAlert = getStockAlert(product, status);
+
+                  return (
+                    <tr key={product.id} className="group bg-card transition hover:bg-primary/[0.035]">
+                      <td className="sticky left-0 z-10 bg-card px-4 py-3 transition group-hover:bg-[#f6fbf5] dark:group-hover:bg-muted">
+                        <div className="flex items-center gap-3">
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="h-10 w-10 rounded-lg object-cover ring-1 ring-border"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
+                              <ImagePlus className="h-5 w-5" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-foreground">{product.name}</p>
+                            <p className="truncate text-xs font-medium text-muted-foreground">
+                              {product.brand || "Sin marca"} · {product.id}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <p className="text-base font-bold text-foreground">{formatStockQuantity(product)}</p>
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Min. {getMinimumStock(product.stockUnit)} {product.stockUnit}
+                        </p>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <span className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ${getStatusClassName(status)}`}>
+                          <span className={`h-2 w-2 rounded-full ${getStatusDotClassName(status)}`} />
+                          {status}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-muted-foreground">
+                        {stockAlert}
+                      </td>
+                      <td className="px-4 py-3">
+                        <details className="group/details">
+                          <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/50 hover:text-foreground">
+                            Ver datos
+                            <ChevronDown className="h-3.5 w-3.5 transition group-open/details:rotate-180" />
+                          </summary>
+                          <div className="mt-2 grid min-w-56 gap-1 rounded-lg border border-border bg-background p-3 text-xs font-medium text-muted-foreground shadow-lg">
+                            <span>Categoria: {product.category}</span>
+                            <span>Codigo: {product.barcode}</span>
+                            <span>Precio: {formatCurrency(product.salePrice)}</span>
+                          </div>
+                        </details>
+                      </td>
+                      <td className="sticky right-0 z-10 bg-card px-4 py-3 transition group-hover:bg-[#f6fbf5] dark:group-hover:bg-muted">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEditProduct(product)}
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:bg-primary/5"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 text-destructive transition hover:bg-destructive/15"
+                            aria-label={`Eliminar ${product.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr]">
+        <article className={claseTarjeta("p-4")}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground">Ventas del dia</h3>
+            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="mt-3 text-2xl font-bold text-foreground">$0.00</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">Se alimenta desde ventas registradas.</p>
+        </article>
+
+        <article className={claseTarjeta("p-4")}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground">Ultimas entradas</h3>
+            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
+            Sin entradas registradas.
+          </div>
+        </article>
+
+        <article className={claseTarjeta("p-4")}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground">Reportes secundarios</h3>
+            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
+            Ventas por categoria y rotacion apareceran aqui.
           </div>
         </article>
       </section>
@@ -663,7 +863,7 @@ export default function DashboardView() {
                       value={productForm.barcode}
                       onChange={(event) => updateProductForm("barcode", event.target.value)}
                       onKeyDown={handleBarcodeKeyDown}
-                      placeholder="Escanea o escribe codigo"
+                      placeholder="Escribe codigo de barras"
                       className="h-11 w-full rounded-lg border border-input bg-background px-3 font-mono text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
                   </label>
@@ -672,7 +872,7 @@ export default function DashboardView() {
                     onClick={suggestProductFromBarcode}
                     className={claseBotonPrimario("mt-auto h-11 px-4 text-sm")}
                   >
-                    Escanear
+                    Buscar
                   </button>
                 </div>
                 <p className="mt-3 text-xs font-medium text-muted-foreground">
@@ -693,7 +893,7 @@ export default function DashboardView() {
                   />
                 </label>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2">
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     <span>Categoria</span>
                     <select
@@ -725,39 +925,63 @@ export default function DashboardView() {
                       ))}
                     </select>
                   </label>
-
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Cantidad de cajas</span>
-                    <select
-                      required
-                      value={productForm.unit}
-                      onChange={(event) => updateProductForm("unit", event.target.value)}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    >
-                      {unitOptions.map((unit) => (
-                        <option key={unit} value={unit}>
-                          {unit} {unit === "1" ? "caja" : "cajas"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-4">
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Stock total</span>
-                    <input
-                      required
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={productForm.stockTotal || ""}
-                      onChange={(event) => updateProductForm("stockTotal", event.target.value)}
-                      placeholder="0"
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    />
-                  </label>
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-semibold text-foreground">Unidad, cajas y kilos</h4>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Minimo: {getMinimumStock(productForm.stockUnit)} {productForm.stockUnit}
+                    </span>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                      <span>Unidad</span>
+                      <select
+                        required
+                        value={productForm.stockUnit}
+                        onChange={(event) => updateStockUnit(event.target.value as StockUnit)}
+                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      >
+                        {stockUnitOptions.map((stockUnit) => (
+                          <option key={stockUnit} value={stockUnit}>
+                            {stockUnit}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
+                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                      <span>Cajas</span>
+                      <input
+                        required={productForm.stockUnit === "cajas"}
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={productForm.boxes || ""}
+                        onChange={(event) => updateProductForm("boxes", event.target.value)}
+                        placeholder="0"
+                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      />
+                    </label>
+
+                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                      <span>Kilos</span>
+                      <input
+                        required={productForm.stockUnit === "kilos"}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={productForm.kilos || ""}
+                        onChange={(event) => updateProductForm("kilos", event.target.value)}
+                        placeholder="0"
+                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     <span>Precio</span>
                     <input
@@ -768,34 +992,6 @@ export default function DashboardView() {
                       value={productForm.salePrice || ""}
                       onChange={(event) => updateProductForm("salePrice", event.target.value)}
                       placeholder="$0.00"
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    />
-                  </label>
-
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Stock minimo</span>
-                    <input
-                      required
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={productForm.minStock || ""}
-                      onChange={(event) => updateProductForm("minStock", event.target.value)}
-                      placeholder="0"
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    />
-                  </label>
-
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Stock maximo</span>
-                    <input
-                      required
-                      type="number"
-                      min={productForm.minStock}
-                      step="1"
-                      value={productForm.maxStock || ""}
-                      onChange={(event) => updateProductForm("maxStock", event.target.value)}
-                      placeholder="0"
                       className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
                   </label>
@@ -841,7 +1037,7 @@ export default function DashboardView() {
 
               <div className="mt-5 rounded-lg border border-border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
                 Usa TAB para avanzar y ENTER en el codigo de barras para sugerir datos. Guardar y continuar
-                mantiene categoria, marca, unidad y rangos de stock.
+                mantiene categoria, marca y unidad.
               </div>
             </div>
 

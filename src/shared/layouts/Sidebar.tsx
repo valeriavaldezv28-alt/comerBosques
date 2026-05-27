@@ -84,12 +84,15 @@ export const BarraLateral = ({
 
   const contenidoSidebar = (
     <>
-      <div className="mb-8 flex items-center justify-between gap-2">
+      <div className="mb-6 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary shadow-sm shadow-primary/25">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary shadow-lg shadow-primary/25 ring-1 ring-primary/20">
             <Store className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="truncate text-base font-semibold text-foreground">Comercializadora Bosques</span>
+          <div className="min-w-0">
+            <span className="block truncate text-sm font-bold text-foreground">Comercializadora Bosques</span>
+            <span className="block truncate text-xs font-medium text-muted-foreground">ERP Inventario</span>
+          </div>
         </div>
         {mode === "mobile" && (
           <button
@@ -103,11 +106,11 @@ export const BarraLateral = ({
         )}
       </div>
 
-      <p className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
         Operacion
       </p>
 
-      <nav className="space-y-1">
+      <nav className="space-y-1.5">
         {menuItems.map((item) => {
           const active = location.pathname === item.path && item.key === "inventory";
           const Icon = item.icon;
@@ -117,13 +120,24 @@ export const BarraLateral = ({
               key={item.key}
               type="button"
               onClick={() => manejarNavegacion(item.path)}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+              className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
                 active
-                  ? "bg-primary font-semibold text-primary-foreground shadow-sm shadow-primary/20"
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  ? "bg-primary/10 text-foreground shadow-sm shadow-primary/10 ring-1 ring-primary/15"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <span
+                className={`absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary transition ${
+                  active ? "opacity-100" : "opacity-0 group-hover:opacity-40"
+                }`}
+              />
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                  active ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" : "bg-transparent group-hover:bg-background"
+                }`}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </span>
               <span className="flex-1 text-left">{item.label}</span>
             </button>
           );
@@ -131,25 +145,25 @@ export const BarraLateral = ({
       </nav>
 
       <div className="mt-auto space-y-2 pt-8">
-        <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/70 p-3">
+        <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/70 p-3 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-semibold text-sidebar-accent-foreground">
-            <UsersRound className="h-4 w-4" />
+            <UsersRound className="h-[18px] w-[18px] text-primary" />
             Almacen central
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Recepcion y surtido activos</p>
+          <p className="mt-1 text-xs font-medium leading-5 text-muted-foreground">Recepcion y surtido activos</p>
         </div>
         <button
           type="button"
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <HelpCircle className="h-4 w-4" />
+          <HelpCircle className="h-[18px] w-[18px]" />
           <span>Ayuda</span>
         </button>
         <button
           type="button"
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-[18px] w-[18px]" />
           <span>Salir</span>
         </button>
       </div>
@@ -158,7 +172,7 @@ export const BarraLateral = ({
 
   if (mode === "desktop") {
     return (
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border/70 bg-sidebar p-5 lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border/70 bg-sidebar/95 p-4 shadow-[12px_0_30px_hsl(var(--foreground)/0.035)] lg:flex">
         {contenidoSidebar}
       </aside>
     );
@@ -175,7 +189,7 @@ export const BarraLateral = ({
 
       <aside
         id="dashboard-sidebar-mobile"
-        className={`relative flex h-full w-72 flex-col bg-sidebar p-5 transition-transform ${
+        className={`relative flex h-full w-72 flex-col bg-sidebar p-4 shadow-2xl transition-transform ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
