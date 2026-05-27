@@ -8,13 +8,15 @@ import {
   FolderUp,
   ImagePlus,
   PackageCheck,
+  Pencil,
   Plus,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
-type InventoryStatus = "En rango" | "Bajo minimo" | "Agotado" | "Sobre maximo";
+type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
 
 type InventoryProduct = {
   id: string;
@@ -33,20 +35,14 @@ type InventoryProduct = {
   lastMovement?: string;
 };
 
-type ProductForm = Omit<InventoryProduct, "stockTotal" | "available" | "lastMovement">;
+type ProductForm = Omit<InventoryProduct, "available" | "lastMovement">;
 
 const categoryOptions = ["Aceites", "Bebidas", "Abarrotes", "Limpieza"] as const;
 type CategoryOption = (typeof categoryOptions)[number];
 
 const brandOptions = ["Sin marca", "Nutrioli", "Coca-Cola", "Great Value", "Fabuloso"] as const;
-const unitOptions = ["Caja"] as const;
-type UnitOption = (typeof unitOptions)[number];
-
-const taxOptions = [
-  { label: "IVA 16%", value: 16 },
-  { label: "IVA 0%", value: 0 },
-  { label: "Exento", value: 0 },
-];
+type UnitOption = string;
+const unitOptions: UnitOption[] = Array.from({ length: 50 }, (_, index) => String(index + 1));
 
 const categoryStockRules: Record<CategoryOption, { minStock: number; maxStock: number }> = {
   Aceites: { minStock: 24, maxStock: 120 },
@@ -61,22 +57,24 @@ const emptyProductForm: ProductForm = {
   name: "",
   category: "Aceites",
   brand: "Sin marca",
-  unit: "Caja",
+  unit: "1",
   minStock: categoryStockRules.Aceites.minStock,
   maxStock: categoryStockRules.Aceites.maxStock,
   salePrice: 0,
   taxRate: 16,
   imageUrl: "",
+  stockTotal: 0,
 };
 
 const quickFilters = ["Categoria", "Marca", "Estatus", "Nivel de stock"];
+const productsStorageKey = "comercializadora-bosques-products";
 
 const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
   "7501023501128": {
     name: "Aceite vegetal 1 L",
     category: "Aceites",
     brand: "Nutrioli",
-    unit: "Caja",
+    unit: "1",
     salePrice: 38.9,
     minStock: 24,
     maxStock: 120,
@@ -86,7 +84,7 @@ const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
     name: "Refresco cola 600 ml",
     category: "Bebidas",
     brand: "Coca-Cola",
-    unit: "Caja",
+    unit: "1",
     salePrice: 18,
     minStock: 48,
     maxStock: 240,
@@ -96,7 +94,7 @@ const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
     name: "Limpiador multiusos 1 L",
     category: "Limpieza",
     brand: "Fabuloso",
-    unit: "Caja",
+    unit: "1",
     salePrice: 31,
     minStock: 18,
     maxStock: 90,
@@ -112,71 +110,79 @@ const formatCurrency = (value: number) =>
   }).format(value);
 
 const getStatus = (product: InventoryProduct): InventoryStatus => {
-  if (product.available <= 0) {
-    return "Agotado";
+  if (product.stockTotal <= 0) {
+    return "agotado";
   }
 
-  if (product.available <= product.minStock) {
-    return "Bajo minimo";
+  if (product.stockTotal < 50) {
+    return "poca disponibilidad";
   }
 
-  if (product.maxStock > 0 && product.available >= product.maxStock) {
-    return "Sobre maximo";
-  }
-
-  return "En rango";
+  return "disponible";
 };
 
 const getStatusClassName = (status: InventoryStatus) => {
-  if (status === "En rango") {
+  if (status === "disponible") {
     return "bg-success/10 text-success ring-success/25";
   }
 
-  if (status === "Bajo minimo") {
+  if (status === "poca disponibilidad") {
     return "bg-amber-100 text-amber-800 ring-amber-300/70 dark:bg-amber-400/15 dark:text-amber-200";
-  }
-
-  if (status === "Sobre maximo") {
-    return "bg-sky-100 text-sky-800 ring-sky-300/70 dark:bg-sky-400/15 dark:text-sky-200";
   }
 
   return "bg-destructive/10 text-destructive ring-destructive/25";
 };
 
-const getStockAlert = (product: InventoryProduct, status: InventoryStatus) => {
-  if (status === "Agotado") {
+const getStockAlert = (status: InventoryStatus) => {
+  if (status === "agotado") {
     return "Sin existencias";
   }
 
-  if (status === "Bajo minimo") {
-    return `Pedir ${Math.max(product.maxStock - product.available, 0)} ${product.unit}`;
+  if (status === "poca disponibilidad") {
+    return "Stock menor a 50";
   }
 
-  if (status === "Sobre maximo") {
-    return `Arriba por ${product.available - product.maxStock}`;
+  return "Stock suficiente";
+};
+
+const getNextProductId = (products: InventoryProduct[]) => {
+  const nextNumber =
+    products.reduce((highestNumber, product) => {
+      const match = /^PROD-(\d+)$/.exec(product.id);
+      return match ? Math.max(highestNumber, Number(match[1])) : highestNumber;
+    }, 0) + 1;
+
+  return `PROD-${String(nextNumber).padStart(6, "0")}`;
+};
+
+const loadStoredProducts = (): InventoryProduct[] => {
+  if (typeof window === "undefined") {
+    return [];
   }
 
-  return "Dentro del rango";
+  try {
+    const storedProducts = window.localStorage.getItem(productsStorageKey);
+    return storedProducts ? (JSON.parse(storedProducts) as InventoryProduct[]) : [];
+  } catch {
+    return [];
+  }
 };
 
 export default function DashboardView() {
-  const [products, setProducts] = useState<InventoryProduct[]>([]);
+  const [products, setProducts] = useState<InventoryProduct[]>(loadStoredProducts);
   const [searchTerm, setSearchTerm] = useState("");
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
-  const nextProductId = useMemo(() => {
-    const nextNumber =
-      products.reduce((highestNumber, product) => {
-        const match = /^PROD-(\d+)$/.exec(product.id);
-        return match ? Math.max(highestNumber, Number(match[1])) : highestNumber;
-      }, 0) + 1;
+  const nextProductId = useMemo(() => getNextProductId(products), [products]);
 
-    return `PROD-${String(nextNumber).padStart(6, "0")}`;
+  useEffect(() => {
+    window.localStorage.setItem(productsStorageKey, JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
@@ -186,10 +192,10 @@ export default function DashboardView() {
 
     setProductForm((currentForm) => ({
       ...currentForm,
-      id: currentForm.id || nextProductId,
+      id: editingProductId ? currentForm.id : currentForm.id || nextProductId,
     }));
     window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
-  }, [isProductFormOpen, nextProductId]);
+  }, [editingProductId, isProductFormOpen, nextProductId]);
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -206,10 +212,9 @@ export default function DashboardView() {
     );
   }, [products, searchTerm]);
 
-  const activeProducts = products.filter((product) => getStatus(product) === "En rango").length;
-  const lowStockProducts = products.filter((product) => getStatus(product) === "Bajo minimo").length;
-  const soldOutProducts = products.filter((product) => getStatus(product) === "Agotado").length;
-  const overStockProducts = products.filter((product) => getStatus(product) === "Sobre maximo").length;
+  const availableProducts = products.filter((product) => getStatus(product) === "disponible").length;
+  const lowAvailabilityProducts = products.filter((product) => getStatus(product) === "poca disponibilidad").length;
+  const soldOutProducts = products.filter((product) => getStatus(product) === "agotado").length;
   const inventoryValue = products.reduce(
     (total, product) => total + product.stockTotal * product.salePrice,
     0,
@@ -218,7 +223,7 @@ export default function DashboardView() {
   const updateProductForm = (field: keyof ProductForm, value: string) => {
     setProductForm((currentForm) => ({
       ...currentForm,
-      [field]: ["minStock", "maxStock", "salePrice", "taxRate"].includes(field)
+      [field]: ["minStock", "maxStock", "salePrice", "taxRate", "stockTotal"].includes(field)
         ? Number(value)
         : value,
     }));
@@ -286,21 +291,59 @@ export default function DashboardView() {
 
   const resetProductForm = () => {
     setProductForm(emptyProductForm);
+    setEditingProductId(null);
     setIsProductFormOpen(false);
   };
 
-  const clearProductForm = () => {
+  const clearProductForm = (nextId = nextProductId) => {
     setProductForm({
       ...emptyProductForm,
-      id: nextProductId,
+      id: nextId,
       category: productForm.category,
       brand: productForm.brand,
       unit: productForm.unit,
-      taxRate: productForm.taxRate,
       minStock: productForm.minStock,
       maxStock: productForm.maxStock,
     });
     window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
+  };
+
+  const openNewProductForm = () => {
+    setEditingProductId(null);
+    setProductForm({
+      ...emptyProductForm,
+      id: nextProductId,
+    });
+    setIsProductFormOpen(true);
+  };
+
+  const handleEditProduct = (product: InventoryProduct) => {
+    setEditingProductId(product.id);
+    setProductForm({
+      id: product.id,
+      barcode: product.barcode,
+      name: product.name,
+      category: product.category,
+      brand: product.brand,
+      unit: product.unit,
+      minStock: product.minStock,
+      maxStock: product.maxStock,
+      salePrice: product.salePrice,
+      taxRate: product.taxRate,
+      imageUrl: product.imageUrl,
+      stockTotal: product.stockTotal,
+    });
+    setIsProductFormOpen(true);
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    const shouldDelete = window.confirm("Eliminar este producto del inventario?");
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setProducts((currentProducts) => currentProducts.filter((product) => product.id !== productId));
   };
 
   const handleCreateProduct = (event: FormEvent<HTMLFormElement>) => {
@@ -309,96 +352,60 @@ export default function DashboardView() {
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const shouldContinue = submitter?.value === "continue";
 
-    setProducts((currentProducts) => [
-      {
-        ...productForm,
-        id: productForm.id || nextProductId,
-        stockTotal: 0,
-        available: 0,
-        lastMovement: "Producto creado sin stock inicial",
-      },
-      ...currentProducts,
+    if (editingProductId) {
+      setProducts((currentProducts) =>
+        currentProducts.map((product) =>
+          product.id === editingProductId
+            ? {
+                ...product,
+                ...productForm,
+                id: editingProductId,
+                available: productForm.stockTotal,
+              }
+            : product,
+        ),
+      );
+      resetProductForm();
+      return;
+    }
+
+    const createdProductId = getNextProductId(products);
+    const nextAvailableId = getNextProductId([
+      { ...productForm, id: createdProductId, available: productForm.stockTotal },
+      ...products,
     ]);
 
+    setProducts((currentProducts) => {
+      const newProductId = getNextProductId(currentProducts);
+
+      return [
+        {
+          ...productForm,
+          id: newProductId,
+          available: productForm.stockTotal,
+          lastMovement: "Producto creado con stock inicial",
+        },
+        ...currentProducts,
+      ];
+    });
+
     if (shouldContinue) {
-      clearProductForm();
+      clearProductForm(nextAvailableId);
       return;
     }
 
     resetProductForm();
   };
 
+  const metrics = [
+    { label: "Valor total del inventario", value: formatCurrency(inventoryValue), icon: CircleDollarSign },
+    { label: "Disponibles", value: String(availableProducts), icon: PackageCheck },
+    { label: "Poca disponibilidad", value: String(lowAvailabilityProducts), icon: Boxes },
+    { label: "Agotados", value: String(soldOutProducts), icon: ClipboardList },
+  ];
+
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-5">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {[
-          { label: "Valor total del inventario", value: formatCurrency(inventoryValue), icon: CircleDollarSign },
-          { label: "En rango", value: String(activeProducts), icon: PackageCheck },
-          { label: "Bajo minimo", value: String(lowStockProducts), icon: Boxes },
-          { label: "Agotados", value: String(soldOutProducts), icon: ClipboardList },
-          { label: "Sobre maximo", value: String(overStockProducts), icon: Boxes },
-        ].map((metric) => {
-          const Icon = metric.icon;
-
-          return (
-            <article key={metric.label} className={claseTarjeta("p-4")}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">{metric.label}</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{metric.value}</p>
-                </div>
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Icon className="h-5 w-5" />
-                </span>
-              </div>
-            </article>
-          );
-        })}
-      </section>
-
-      <section className={claseTarjeta("p-4 sm:p-5")}>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-base font-semibold text-foreground">Control por categoria</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Minimos y maximos activos para alertas de inventario.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(["Agotado", "Bajo minimo", "En rango", "Sobre maximo"] as InventoryStatus[]).map((status) => (
-              <span
-                key={status}
-                className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 ${getStatusClassName(status)}`}
-              >
-                {status}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {categoryOptions.map((category) => {
-            const stockRule = categoryStockRules[category];
-
-            return (
-              <article key={category} className="rounded-lg border border-border/70 bg-muted/25 p-3">
-                <p className="text-sm font-semibold text-foreground">{category}</p>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-lg bg-background/70 p-2">
-                    <p className="text-xs text-muted-foreground">Minimo</p>
-                    <p className="mt-1 font-semibold text-foreground">{stockRule.minStock}</p>
-                  </div>
-                  <div className="rounded-lg bg-background/70 p-2">
-                    <p className="text-xs text-muted-foreground">Maximo</p>
-                    <p className="mt-1 font-semibold text-foreground">{stockRule.maxStock}</p>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
       <section className={claseTarjeta("overflow-hidden")}>
         <div className="border-b border-border/70 p-4 sm:p-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -421,7 +428,7 @@ export default function DashboardView() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsProductFormOpen(true)}
+                onClick={openNewProductForm}
                 className={claseBotonPrimario("h-11 gap-2 px-4 text-sm")}
               >
                 <Plus className="h-4 w-4" />
@@ -444,7 +451,7 @@ export default function DashboardView() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] border-collapse text-left">
+          <table className="w-full min-w-[1260px] border-collapse text-left">
             <thead className="bg-muted/45 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 {[
@@ -459,6 +466,7 @@ export default function DashboardView() {
                   "Precio venta",
                   "Estatus",
                   "Alerta",
+                  "Acciones",
                 ].map((heading) => (
                   <th key={heading} className="whitespace-nowrap px-4 py-3 font-semibold">
                     {heading}
@@ -469,7 +477,7 @@ export default function DashboardView() {
             <tbody className="divide-y divide-border/70">
               {filteredProducts.map((product) => {
                 const status = getStatus(product);
-                const stockAlert = getStockAlert(product, status);
+                const stockAlert = getStockAlert(status);
 
                 return (
                   <tr key={product.id} className="bg-card transition hover:bg-muted/30">
@@ -520,6 +528,26 @@ export default function DashboardView() {
                     <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-muted-foreground">
                       {stockAlert}
                     </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditProduct(product)}
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(product.id)}
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 text-sm font-medium text-destructive transition hover:bg-destructive/15"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -534,11 +562,11 @@ export default function DashboardView() {
             </div>
             <h3 className="mt-4 text-lg font-semibold text-foreground">Inventario sin productos</h3>
             <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Agrega el primer producto al catalogo. El stock se mantendra en cero hasta registrar una entrada.
+              Agrega el primer producto al catalogo y captura su stock inicial.
             </p>
             <button
               type="button"
-              onClick={() => setIsProductFormOpen(true)}
+              onClick={openNewProductForm}
               className={claseBotonPrimario("mt-5 h-11 gap-2 px-4 text-sm")}
             >
               <Plus className="h-4 w-4" />
@@ -546,6 +574,26 @@ export default function DashboardView() {
             </button>
           </div>
         )}
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {metrics.map((metric) => {
+          const Icon = metric.icon;
+
+          return (
+            <article key={metric.label} className={claseTarjeta("p-4")}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">{metric.label}</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{metric.value}</p>
+                </div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="h-5 w-5" />
+                </span>
+              </div>
+            </article>
+          );
+        })}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_1fr_1fr]">
@@ -587,8 +635,12 @@ export default function DashboardView() {
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">Nuevo producto</h3>
-                <p className="text-sm text-muted-foreground">El stock inicial queda en cero.</p>
+                <h3 className="text-lg font-semibold text-foreground">
+                  {editingProductId ? "Editar producto" : "Nuevo producto"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {editingProductId ? "Actualiza la informacion del producto." : "Captura el stock inicial."}
+                </p>
               </div>
               <button
                 type="button"
@@ -641,7 +693,7 @@ export default function DashboardView() {
                   />
                 </label>
 
-                <div className="grid gap-4 md:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-3">
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     <span>Categoria</span>
                     <select
@@ -675,7 +727,7 @@ export default function DashboardView() {
                   </label>
 
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Unidad</span>
+                    <span>Cantidad de cajas</span>
                     <select
                       required
                       value={productForm.unit}
@@ -684,29 +736,28 @@ export default function DashboardView() {
                     >
                       {unitOptions.map((unit) => (
                         <option key={unit} value={unit}>
-                          {unit}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Impuestos</span>
-                    <select
-                      value={productForm.taxRate}
-                      onChange={(event) => updateProductForm("taxRate", event.target.value)}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    >
-                      {taxOptions.map((tax) => (
-                        <option key={`${tax.label}-${tax.value}`} value={tax.value}>
-                          {tax.label}
+                          {unit} {unit === "1" ? "caja" : "cajas"}
                         </option>
                       ))}
                     </select>
                   </label>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-4">
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Stock total</span>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={productForm.stockTotal || ""}
+                      onChange={(event) => updateProductForm("stockTotal", event.target.value)}
+                      placeholder="0"
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    />
+                  </label>
+
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     <span>Precio</span>
                     <input
@@ -790,7 +841,7 @@ export default function DashboardView() {
 
               <div className="mt-5 rounded-lg border border-border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
                 Usa TAB para avanzar y ENTER en el codigo de barras para sugerir datos. Guardar y continuar
-                mantiene categoria, marca, unidad, impuestos y rangos de stock.
+                mantiene categoria, marca, unidad y rangos de stock.
               </div>
             </div>
 
@@ -802,14 +853,16 @@ export default function DashboardView() {
               >
                 Cancelar
               </button>
-              <button
-                type="submit"
-                name="productAction"
-                value="continue"
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
-              >
-                Guardar y continuar
-              </button>
+              {!editingProductId && (
+                <button
+                  type="submit"
+                  name="productAction"
+                  value="continue"
+                  className="inline-flex h-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                >
+                  Guardar y continuar
+                </button>
+              )}
               <button
                 type="submit"
                 name="productAction"
