@@ -22,6 +22,7 @@ import {
   customerCartUpdatedEvent,
   customerInvoicesStorageKey,
   productsStorageKey,
+  productsUpdatedEvent,
 } from "@/features/comercializadora/storage";
 import { claseBotonPrimario, claseTarjeta, claseTarjetaSuave } from "@/shared/ui/estilosDashboard";
 
@@ -31,10 +32,14 @@ type CatalogProduct = {
   name: string;
   category: string;
   brand: string;
+  stockUnit?: "cajas" | "kilos";
+  boxes?: number;
+  kilos?: number;
   salePrice: number;
   imageUrl: string;
   stockTotal: number;
   available: number;
+  lastMovement?: string;
 };
 
 type CartItem = {
@@ -172,11 +177,7 @@ const loadCatalogProducts = (): CatalogProduct[] => {
   try {
     const storedProducts = window.localStorage.getItem(productsStorageKey);
     const parsedProducts = storedProducts ? (JSON.parse(storedProducts) as CatalogProduct[]) : [];
-    const purchasableProducts = parsedProducts.filter(
-      (product) => product.available > 0 && product.salePrice > 0,
-    );
-
-    return purchasableProducts.length > 0 ? purchasableProducts : fallbackProducts;
+    return storedProducts ? parsedProducts : fallbackProducts;
   } catch {
     return fallbackProducts;
   }
@@ -212,10 +213,14 @@ const notifyCartUpdated = () => {
   window.dispatchEvent(new Event(customerCartUpdatedEvent));
 };
 
+const notifyProductsUpdated = () => {
+  window.dispatchEvent(new Event(productsUpdatedEvent));
+};
+
 export default function ClienteView() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [products] = useState<CatalogProduct[]>(loadCatalogProducts);
+  const [products, setProducts] = useState<CatalogProduct[]>(loadCatalogProducts);
   const [cartItems, setCartItems] = useState<CartItem[]>(loadCartItems);
   const [invoices, setInvoices] = useState<Invoice[]>(loadInvoices);
   const [searchTerm, setSearchTerm] = useState("");
@@ -235,6 +240,11 @@ export default function ClienteView() {
   useEffect(() => {
     window.localStorage.setItem(customerInvoicesStorageKey, JSON.stringify(invoices));
   }, [invoices]);
+
+  useEffect(() => {
+    window.localStorage.setItem(productsStorageKey, JSON.stringify(products));
+    notifyProductsUpdated();
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     const purchasableProducts = products.filter((product) => product.available > 0 && product.salePrice > 0);
@@ -325,6 +335,27 @@ export default function ClienteView() {
     };
 
     setInvoices((currentInvoices) => [nextInvoice, ...currentInvoices]);
+    setProducts((currentProducts) =>
+      currentProducts.map((product) => {
+        const purchasedProduct = cartProducts.find((cartProduct) => cartProduct.id === product.id);
+
+        if (!purchasedProduct) {
+          return product;
+        }
+
+        const nextAvailable = Math.max(0, product.available - purchasedProduct.quantity);
+        const nextStockTotal = Math.max(0, product.stockTotal - purchasedProduct.quantity);
+
+        return {
+          ...product,
+          boxes: product.stockUnit === "cajas" ? nextStockTotal : product.boxes,
+          kilos: product.stockUnit === "kilos" ? nextStockTotal : product.kilos,
+          stockTotal: nextStockTotal,
+          available: nextAvailable,
+          lastMovement: `Compra cliente: -${purchasedProduct.quantity}`,
+        };
+      }),
+    );
     setCartItems([]);
     setCardName("");
     setCardNumber("");

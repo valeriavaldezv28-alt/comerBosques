@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Boxes,
-  Camera,
   ChevronDown,
   CircleDollarSign,
   ClipboardList,
@@ -22,7 +21,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { productsStorageKey } from "@/features/comercializadora/storage";
+import { productsStorageKey, productsUpdatedEvent } from "@/features/comercializadora/storage";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
 type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
@@ -178,6 +177,7 @@ const normalizeProduct = (product: InventoryProduct & { unit?: string }): Invent
   const stockTotal = product.stockTotal ?? 0;
   const boxes = product.boxes ?? (stockUnit === "cajas" ? Number(product.unit) || stockTotal : 0);
   const kilos = product.kilos ?? (stockUnit === "kilos" ? stockTotal : 0);
+  const quantity = stockUnit === "kilos" ? kilos : boxes;
 
   return {
     ...product,
@@ -185,8 +185,8 @@ const normalizeProduct = (product: InventoryProduct & { unit?: string }): Invent
     boxes,
     kilos,
     minStock: getMinimumStock(stockUnit),
-    stockTotal: stockUnit === "kilos" ? kilos : boxes,
-    available: stockUnit === "kilos" ? kilos : boxes,
+    stockTotal: quantity,
+    available: typeof product.available === "number" ? product.available : quantity,
   };
 };
 
@@ -221,7 +221,6 @@ export default function DashboardView() {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const nextProductId = useMemo(() => getNextProductId(products), [products]);
@@ -229,6 +228,18 @@ export default function DashboardView() {
   useEffect(() => {
     window.localStorage.setItem(productsStorageKey, JSON.stringify(products));
   }, [products]);
+
+  useEffect(() => {
+    const reloadProducts = () => setProducts(loadStoredProducts());
+
+    window.addEventListener(productsUpdatedEvent, reloadProducts);
+    window.addEventListener("storage", reloadProducts);
+
+    return () => {
+      window.removeEventListener(productsUpdatedEvent, reloadProducts);
+      window.removeEventListener("storage", reloadProducts);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isProductFormOpen) {
@@ -333,10 +344,18 @@ export default function DashboardView() {
       return;
     }
 
-    setProductForm((currentForm) => ({
-      ...currentForm,
-      imageUrl: URL.createObjectURL(file),
-    }));
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        return;
+      }
+
+      setProductForm((currentForm) => ({
+        ...currentForm,
+        imageUrl: reader.result as string,
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const resetProductForm = () => {
@@ -853,7 +872,7 @@ export default function DashboardView() {
 
             <div className="flex-1 overflow-y-auto p-5">
               <div className="rounded-lg border border-border bg-muted/20 p-4">
-                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <div className="grid gap-3">
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     <span>Codigo de barras</span>
                     <input
@@ -866,13 +885,6 @@ export default function DashboardView() {
                       className="h-11 w-full rounded-lg border border-input bg-background px-3 font-mono text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
                   </label>
-                  <button
-                    type="button"
-                    onClick={suggestProductFromBarcode}
-                    className={claseBotonPrimario("mt-auto h-11 px-4 text-sm")}
-                  >
-                    Buscar
-                  </button>
                 </div>
                 <p className="mt-3 text-xs font-medium text-muted-foreground">
                   ID automatico: <span className="font-mono text-foreground">{productForm.id || nextProductId}</span>
@@ -1001,14 +1013,6 @@ export default function DashboardView() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
-                    >
-                      <Camera className="h-4 w-4" />
-                      Camara
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => uploadInputRef.current?.click()}
                       className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
                     >
@@ -1016,14 +1020,6 @@ export default function DashboardView() {
                       Subir
                     </button>
                   </div>
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(event) => updateProductImage(event.target.files?.[0] ?? null)}
-                    className="hidden"
-                  />
                   <input
                     ref={uploadInputRef}
                     type="file"
