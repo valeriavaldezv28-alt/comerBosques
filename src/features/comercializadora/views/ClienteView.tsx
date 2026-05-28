@@ -9,10 +9,12 @@ import {
   Minus,
   PackageCheck,
   Plus,
+  Printer,
   ReceiptText,
   Search,
   ShoppingCart,
   Trash2,
+  X,
 } from "lucide-react";
 import { ROUTE_PATHS } from "@/config/routePaths";
 import {
@@ -54,7 +56,7 @@ type Invoice = {
   deliveryFee: number;
   total: number;
   paymentMethod: PaymentMethod;
-  status: "Pagada";
+  status: "Pagada" | "Contra entrega";
 };
 
 type CustomerSection = "catalogo" | "pedido" | "checkout" | "pago";
@@ -118,6 +120,14 @@ const getPaymentMethodLabel = (paymentMethod?: PaymentMethod) => {
   }
 
   return "No registrado";
+};
+
+const getInvoiceStatusClassName = (status: Invoice["status"]) => {
+  if (status === "Pagada") {
+    return "bg-success/10 text-success ring-success/25";
+  }
+
+  return "bg-amber-500/10 text-amber-700 ring-amber-500/25 dark:text-amber-300";
 };
 
 const getCustomerSection = (hash: string): CustomerSection => {
@@ -192,6 +202,7 @@ export default function ClienteView() {
   const [invoices, setInvoices] = useState<Invoice[]>(loadInvoices);
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("efectivo");
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const activeSection = getCustomerSection(location.hash);
 
   useEffect(() => {
@@ -288,7 +299,7 @@ export default function ClienteView() {
       deliveryFee,
       total,
       paymentMethod,
-      status: "Pagada",
+      status: paymentMethod === "tarjeta" ? "Pagada" : "Contra entrega",
     };
 
     setInvoices((currentInvoices) => [nextInvoice, ...currentInvoices]);
@@ -600,7 +611,7 @@ export default function ClienteView() {
                 className={claseBotonPrimario("mt-4 h-11 w-full gap-2 px-4 text-sm")}
               >
                 <BadgeCheck className="h-4 w-4" />
-                Confirmar pago
+                {paymentMethod === "tarjeta" ? "Confirmar pago" : "Confirmar pedido"}
               </button>
             </aside>
           </div>
@@ -630,45 +641,21 @@ export default function ClienteView() {
                       <p className="font-mono text-sm font-semibold text-foreground">{invoice.id}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{formatDate(invoice.date)}</p>
                     </div>
-                    <span className="rounded-lg bg-success/10 px-2.5 py-1 text-xs font-semibold text-success ring-1 ring-success/25">
+                    <span
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 ${getInvoiceStatusClassName(invoice.status)}`}
+                    >
                       {invoice.status}
                     </span>
                   </div>
 
-                  <div className="mt-4 space-y-2">
-                    {invoice.items.map((item) => (
-                      <div key={`${invoice.id}-${item.name}`} className="flex justify-between gap-3 text-sm">
-                        <span className="min-w-0 truncate text-muted-foreground">
-                          {item.quantity} x {item.name}
-                        </span>
-                        <span className="font-medium text-foreground">
-                          {formatCurrency(item.quantity * item.unitPrice)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 border-t border-border/70 pt-3 text-sm">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Subtotal</span>
-                      <span>{formatCurrency(invoice.subtotal)}</span>
-                    </div>
-                    <div className="mt-1 flex justify-between text-muted-foreground">
-                      <span>Envio</span>
-                      <span>{invoice.deliveryFee === 0 ? "Gratis" : formatCurrency(invoice.deliveryFee)}</span>
-                    </div>
-                    <div className="mt-2 flex justify-between text-base font-semibold text-foreground">
-                      <span>Total</span>
-                      <span>{formatCurrency(invoice.total)}</span>
-                    </div>
-                    <div className="mt-2 flex justify-between text-muted-foreground">
-                      <span>Metodo</span>
-                      <span>{getPaymentMethodLabel(invoice.paymentMethod)}</span>
-                    </div>
+                  <div className="mt-4 flex justify-between text-base font-semibold text-foreground">
+                    <span>Total</span>
+                    <span>{formatCurrency(invoice.total)}</span>
                   </div>
 
                   <button
                     type="button"
+                    onClick={() => setSelectedInvoice(invoice)}
                     className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
                   >
                     <FileText className="h-4 w-4" />
@@ -679,6 +666,98 @@ export default function ClienteView() {
             )}
           </div>
         </section>
+      )}
+
+      {selectedInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div
+            data-print-invoice="true"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-border/70 pb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Informacion del pago</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Factura {selectedInvoice.id} generada el {formatDate(selectedInvoice.date)}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedInvoice(null)}
+                aria-label="Cerrar factura"
+                data-print-hidden="true"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 rounded-lg bg-muted/35 p-4 text-sm sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Estado</p>
+                <p className="mt-1 font-semibold text-foreground">{selectedInvoice.status}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Total</p>
+                <p className="mt-1 font-semibold text-foreground">{formatCurrency(selectedInvoice.total)}</p>
+              </div>
+              {selectedInvoice.paymentMethod === "tarjeta" ? (
+                <div className="sm:col-span-2">
+                  <p className="text-xs font-medium text-muted-foreground">Metodo</p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {getPaymentMethodLabel(selectedInvoice.paymentMethod)}
+                  </p>
+                </div>
+              ) : (
+                <div className="sm:col-span-2">
+                  <p className="text-xs font-medium text-muted-foreground">Condicion</p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    El pago se realizara en efectivo al recibir el pedido.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Productos</h4>
+              {selectedInvoice.items.map((item) => (
+                <div key={`${selectedInvoice.id}-${item.name}`} className="flex justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {item.quantity} x {item.name}
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(item.quantity * item.unitPrice)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 border-t border-border/70 pt-3 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>{formatCurrency(selectedInvoice.subtotal)}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-muted-foreground">
+                <span>Envio</span>
+                <span>{selectedInvoice.deliveryFee === 0 ? "Gratis" : formatCurrency(selectedInvoice.deliveryFee)}</span>
+              </div>
+              <div className="mt-2 flex justify-between text-base font-semibold text-foreground">
+                <span>Total</span>
+                <span>{formatCurrency(selectedInvoice.total)}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              data-print-hidden="true"
+              className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:bg-primary/10"
+            >
+              <Printer className="h-4 w-4" />
+              Imprimir su factura
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
