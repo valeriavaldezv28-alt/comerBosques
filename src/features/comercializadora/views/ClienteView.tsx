@@ -130,6 +130,24 @@ const getInvoiceStatusClassName = (status: Invoice["status"]) => {
   return "bg-amber-500/10 text-amber-700 ring-amber-500/25 dark:text-amber-300";
 };
 
+const formatCardNumber = (value: string) =>
+  value
+    .replace(/\D/g, "")
+    .slice(0, 16)
+    .replace(/(\d{4})(?=\d)/g, "$1 ");
+
+const formatExpiryDate = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+};
+
+const formatSecurityCode = (value: string) => value.replace(/\D/g, "").slice(0, 4);
+
 const getCustomerSection = (hash: string): CustomerSection => {
   if (hash === "#pedido") {
     return "pedido";
@@ -203,6 +221,10 @@ export default function ClienteView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("efectivo");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardSecurityCode, setCardSecurityCode] = useState("");
   const activeSection = getCustomerSection(location.hash);
 
   useEffect(() => {
@@ -304,6 +326,10 @@ export default function ClienteView() {
 
     setInvoices((currentInvoices) => [nextInvoice, ...currentInvoices]);
     setCartItems([]);
+    setCardName("");
+    setCardNumber("");
+    setCardExpiry("");
+    setCardSecurityCode("");
     navigate(`${ROUTE_PATHS.cliente}#pago`);
   };
 
@@ -523,6 +549,8 @@ export default function ClienteView() {
                   <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     required
+                    name="shipping street-address"
+                    autoComplete="shipping street-address"
                     placeholder="Calle, numero, colonia"
                     className="h-10 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                   />
@@ -535,6 +563,10 @@ export default function ClienteView() {
                     <span>Nombre en tarjeta</span>
                     <input
                       required
+                      name="cc-name"
+                      autoComplete="cc-name"
+                      value={cardName}
+                      onChange={(event) => setCardName(event.target.value)}
                       placeholder="Nombre del titular"
                       className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
@@ -543,8 +575,13 @@ export default function ClienteView() {
                     <span>Numero de tarjeta</span>
                     <input
                       required
+                      name="cc-number"
+                      autoComplete="cc-number"
                       inputMode="numeric"
-                      pattern="[0-9 ]{15,19}"
+                      value={cardNumber}
+                      onChange={(event) => setCardNumber(formatCardNumber(event.target.value))}
+                      pattern="[0-9]{4} [0-9]{4} [0-9]{4} [0-9]{4}"
+                      maxLength={19}
                       placeholder="4242 4242 4242 4242"
                       className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
@@ -554,8 +591,14 @@ export default function ClienteView() {
                       <span>Vence</span>
                       <input
                         required
+                        name="cc-exp"
+                        autoComplete="cc-exp"
+                        inputMode="numeric"
+                        value={cardExpiry}
+                        onChange={(event) => setCardExpiry(formatExpiryDate(event.target.value))}
                         placeholder="MM/AA"
                         pattern="(0[1-9]|1[0-2])/[0-9]{2}"
+                        maxLength={5}
                         className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                       />
                     </label>
@@ -563,8 +606,13 @@ export default function ClienteView() {
                       <span>CVV</span>
                       <input
                         required
+                        name="cc-csc"
+                        autoComplete="cc-csc"
                         inputMode="numeric"
+                        value={cardSecurityCode}
+                        onChange={(event) => setCardSecurityCode(formatSecurityCode(event.target.value))}
                         pattern="[0-9]{3,4}"
+                        maxLength={4}
                         placeholder="123"
                         className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                       />
