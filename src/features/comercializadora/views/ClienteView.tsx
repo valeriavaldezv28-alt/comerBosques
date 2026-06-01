@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Banknote,
   CreditCard,
+  Eye,
   FileText,
   MapPin,
   Minus,
@@ -11,9 +12,13 @@ import {
   Plus,
   Printer,
   ReceiptText,
+  RotateCcw,
   Search,
+  SlidersHorizontal,
   ShoppingCart,
+  Sparkles,
   Trash2,
+  Truck,
   X,
 } from "lucide-react";
 import { ROUTE_PATHS } from "@/config/routePaths";
@@ -53,6 +58,7 @@ type Invoice = {
   id: string;
   date: string;
   items: Array<{
+    productId?: string;
     name: string;
     quantity: number;
     unitPrice: number;
@@ -65,6 +71,9 @@ type Invoice = {
 };
 
 type CustomerSection = "catalogo" | "pedido" | "checkout" | "pago";
+type AvailabilityFilter = "all" | "available" | "low";
+
+const FREE_SHIPPING_THRESHOLD = 500;
 
 const fallbackProducts: CatalogProduct[] = [
   {
@@ -155,7 +164,7 @@ const formatSecurityCode = (value: string) => value.replace(/\D/g, "").slice(0, 
 
 const getCustomerSection = (hash: string): CustomerSection => {
   if (hash === "#pedido") {
-    return "pedido";
+    return "catalogo";
   }
 
   if (hash === "#checkout") {
@@ -167,6 +176,61 @@ const getCustomerSection = (hash: string): CustomerSection => {
   }
 
   return "catalogo";
+};
+
+const getStockIndicator = (available: number) => {
+  if (available <= 0) {
+    return {
+      label: "Agotado",
+      className: "bg-destructive/10 text-destructive ring-destructive/25",
+      dotClassName: "bg-destructive",
+    };
+  }
+
+  if (available < 5) {
+    return {
+      label: "Casi agotado",
+      className: "bg-destructive/10 text-destructive ring-destructive/25",
+      dotClassName: "bg-destructive",
+    };
+  }
+
+  if (available <= 20) {
+    return {
+      label: "Ultimas piezas",
+      className: "bg-amber-500/10 text-amber-700 ring-amber-500/25 dark:text-amber-300",
+      dotClassName: "bg-amber-500",
+    };
+  }
+
+  return {
+    label: "Disponible",
+    className: "bg-success/10 text-success ring-success/25",
+    dotClassName: "bg-success",
+  };
+};
+
+const getProductPresentation = (product: CatalogProduct) => {
+  const match = product.name.match(/\b\d+(?:[.,]\d+)?\s?(?:ml|l|kg|g|pz|pzas|piezas)\b/i);
+  return match?.[0] ?? "Presentacion comercial";
+};
+
+const getSaleUnit = (product: CatalogProduct) => {
+  if (product.stockUnit === "kilos") {
+    return "Kilo";
+  }
+
+  if (product.stockUnit === "cajas") {
+    return "Caja";
+  }
+
+  return "Pieza";
+};
+
+const getCategoryOptions = (products: CatalogProduct[]) => {
+  const requestedCategories = ["Abarrotes", "Aceites", "Bebidas", "Limpieza"];
+  const productCategories = Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
+  return ["Todas las categorias", ...requestedCategories, ...productCategories.filter((category) => !requestedCategories.includes(category))];
 };
 
 const loadCatalogProducts = (): CatalogProduct[] => {
@@ -224,6 +288,13 @@ export default function ClienteView() {
   const [cartItems, setCartItems] = useState<CartItem[]>(loadCartItems);
   const [invoices, setInvoices] = useState<Invoice[]>(loadInvoices);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Todas las categorias");
+  const [selectedBrand, setSelectedBrand] = useState("Todas las marcas");
+  const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>("all");
+  const [maxPrice, setMaxPrice] = useState(1000);
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(location.hash === "#pedido");
+  const [animatedCart, setAnimatedCart] = useState(false);
+  const [quickViewProduct, setQuickViewProduct] = useState<CatalogProduct | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("efectivo");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [cardName, setCardName] = useState("");
@@ -231,6 +302,12 @@ export default function ClienteView() {
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardSecurityCode, setCardSecurityCode] = useState("");
   const activeSection = getCustomerSection(location.hash);
+
+  useEffect(() => {
+    if (location.hash === "#pedido") {
+      setIsCartDrawerOpen(true);
+    }
+  }, [location.hash]);
 
   useEffect(() => {
     window.localStorage.setItem(customerCartStorageKey, JSON.stringify(cartItems));
@@ -246,20 +323,60 @@ export default function ClienteView() {
     notifyProductsUpdated();
   }, [products]);
 
+  const highestPrice = useMemo(
+    () => Math.max(100, Math.ceil(Math.max(...products.map((product) => product.salePrice), 100) / 50) * 50),
+    [products],
+  );
+
+  useEffect(() => {
+    setMaxPrice(highestPrice);
+  }, [highestPrice]);
+
+  const categoryOptions = useMemo(() => getCategoryOptions(products), [products]);
+  const brandOptions = useMemo(
+    () => ["Todas las marcas", ...Array.from(new Set(products.map((product) => product.brand).filter(Boolean))).sort()],
+    [products],
+  );
+
   const filteredProducts = useMemo(() => {
-    const purchasableProducts = products.filter((product) => product.available > 0 && product.salePrice > 0);
+    const purchasableProducts = products.filter((product) => product.salePrice > 0);
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    if (!normalizedSearch) {
-      return purchasableProducts;
-    }
-
-    return purchasableProducts.filter((product) =>
-      [product.name, product.brand, product.category, product.barcode]
+    return purchasableProducts.filter((product) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        [product.name, product.brand, product.category, product.barcode, product.id]
         .join(" ")
         .toLowerCase()
-        .includes(normalizedSearch),
-    );
+        .includes(normalizedSearch);
+      const matchesCategory =
+        selectedCategory === "Todas las categorias" || product.category === selectedCategory;
+      const matchesBrand = selectedBrand === "Todas las marcas" || product.brand === selectedBrand;
+      const matchesAvailability =
+        availabilityFilter === "all" ||
+        (availabilityFilter === "available" && product.available > 20) ||
+        (availabilityFilter === "low" && product.available > 0 && product.available <= 20);
+      const matchesPrice = product.salePrice <= maxPrice;
+
+      return matchesSearch && matchesCategory && matchesBrand && matchesAvailability && matchesPrice;
+    });
+  }, [availabilityFilter, maxPrice, products, searchTerm, selectedBrand, selectedCategory]);
+
+  const searchSuggestions = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    if (normalizedSearch.length < 2) {
+      return [];
+    }
+
+    return products
+      .filter((product) =>
+        [product.name, product.brand, product.category, product.barcode, product.id]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearch),
+      )
+      .slice(0, 5);
   }, [products, searchTerm]);
 
   const cartProducts = useMemo(
@@ -274,10 +391,18 @@ export default function ClienteView() {
   );
 
   const subtotal = cartProducts.reduce((total, product) => total + product.salePrice * product.quantity, 0);
-  const deliveryFee = cartProducts.length > 0 && subtotal < 500 ? 35 : 0;
+  const deliveryFee = cartProducts.length > 0 && subtotal < FREE_SHIPPING_THRESHOLD ? 35 : 0;
   const total = subtotal + deliveryFee;
+  const cartTotalItems = cartProducts.reduce((itemTotal, product) => itemTotal + product.quantity, 0);
+  const freeShippingRemaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+  const freeShippingProgress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
 
   const updateQuantity = (productId: string, quantityChange: number) => {
+    if (quantityChange > 0) {
+      setAnimatedCart(true);
+      window.setTimeout(() => setAnimatedCart(false), 380);
+    }
+
     setCartItems((currentItems) => {
       const product = products.find((currentProduct) => currentProduct.id === productId);
 
@@ -311,6 +436,7 @@ export default function ClienteView() {
       return;
     }
 
+    setIsCartDrawerOpen(false);
     navigate(`${ROUTE_PATHS.cliente}#checkout`);
   };
 
@@ -323,6 +449,7 @@ export default function ClienteView() {
       id: `FAC-${String(invoices.length + 1).padStart(5, "0")}`,
       date: new Date().toISOString(),
       items: cartProducts.map((product) => ({
+        productId: product.id,
         name: product.name,
         quantity: product.quantity,
         unitPrice: product.salePrice,
@@ -364,68 +491,233 @@ export default function ClienteView() {
     navigate(`${ROUTE_PATHS.cliente}#pago`);
   };
 
+  const handleBuyAgain = (invoice: Invoice) => {
+    const rebuiltItems = invoice.items
+      .map((item) => {
+        const product = products.find(
+          (currentProduct) =>
+            currentProduct.id === item.productId ||
+            currentProduct.name.toLowerCase() === item.name.toLowerCase(),
+        );
+
+        if (!product || product.available <= 0 || product.salePrice <= 0) {
+          return null;
+        }
+
+        return {
+          productId: product.id,
+          quantity: Math.min(product.available, item.quantity),
+        };
+      })
+      .filter((item): item is CartItem => Boolean(item));
+
+    setCartItems(rebuiltItems);
+    setIsCartDrawerOpen(true);
+    navigate(ROUTE_PATHS.cliente);
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1500px]">
       {activeSection === "catalogo" && (
-        <section className={claseTarjeta("overflow-hidden")}>
-          <div className="border-b border-border/70 p-4 sm:p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <section className="space-y-4">
+          <div className={claseTarjeta("overflow-hidden")}>
+            <div className="grid gap-4 border-b border-border/70 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Catalogo</p>
-                <h2 className="mt-1 text-xl font-semibold text-foreground">Productos disponibles</h2>
+                <h2 className="mt-1 text-xl font-semibold text-foreground">Hola Cliente</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Solo se muestran productos con existencias y precio de venta activo.
+                  Productos agregados: {cartTotalItems} | Total actual: {formatCurrency(subtotal)}
                 </p>
               </div>
-              <div className="relative w-full lg:max-w-md">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  aria-label="Buscar productos"
-                  placeholder="Buscar por producto, marca o categoria..."
-                  className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-ring/20"
-                />
+              <div className="rounded-lg border border-border bg-background p-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-foreground">
+                    {freeShippingRemaining > 0
+                      ? `Te faltan ${formatCurrency(freeShippingRemaining)} para obtener envio gratis`
+                      : "Has desbloqueado envio gratis"}
+                  </span>
+                  <Truck className="h-5 w-5 shrink-0 text-primary" />
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${freeShippingProgress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4 sm:p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="relative w-full lg:max-w-xl">
+                  <Search className="pointer-events-none absolute left-3 top-[22px] h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    aria-label="Buscar productos"
+                    placeholder="Buscar por nombre, marca, categoria, SKU o codigo..."
+                    className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  />
+                  {searchSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-12 z-20 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+                      {searchSuggestions.map((product) => (
+                        <button
+                          key={`suggestion-${product.id}`}
+                          type="button"
+                          onClick={() => setSearchTerm(product.name)}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-muted"
+                        >
+                          <span className="min-w-0 truncate font-medium text-foreground">{product.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{product.brand || product.category}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCartDrawerOpen(true)}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:bg-primary/10"
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  Ver pedido
+                </button>
+              </div>
+
+              <div className="grid gap-3 rounded-lg border border-border bg-muted/25 p-3 lg:grid-cols-[1.2fr_1fr_1fr_1fr]">
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    Categorias
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {categoryOptions.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => setSelectedCategory(category)}
+                        className={`h-9 rounded-lg px-3 text-xs font-semibold transition ${
+                          selectedCategory === category
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground ring-1 ring-border hover:text-foreground"
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span>Marca</span>
+                  <select
+                    value={selectedBrand}
+                    onChange={(event) => setSelectedBrand(event.target.value)}
+                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium normal-case tracking-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  >
+                    {brandOptions.map((brand) => (
+                      <option key={brand}>{brand}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span>Disponibilidad</span>
+                  <select
+                    value={availabilityFilter}
+                    onChange={(event) => setAvailabilityFilter(event.target.value as AvailabilityFilter)}
+                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium normal-case tracking-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="all">Todas</option>
+                    <option value="available">Disponible</option>
+                    <option value="low">Ultimas piezas</option>
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span>Precio hasta {formatCurrency(maxPrice)}</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={highestPrice}
+                    step={10}
+                    value={maxPrice}
+                    onChange={(event) => setMaxPrice(Number(event.target.value))}
+                    className="h-10 w-full accent-primary"
+                  />
+                </label>
               </div>
             </div>
           </div>
 
-          <div id="catalogo" className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-4">
+          <div id="catalogo" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {filteredProducts.map((product) => {
               const quantity = cartItems.find((item) => item.productId === product.id)?.quantity ?? 0;
+              const stockIndicator = getStockIndicator(product.available);
+              const isBestSeller = product.stockTotal >= 60;
+              const isOffer = product.salePrice < 30;
 
               return (
-                <article key={product.id} className={claseTarjetaSuave("flex flex-col overflow-hidden")}>
-                  <div className="flex aspect-[4/3] items-center justify-center bg-muted/60">
+                <article
+                  key={product.id}
+                  className={claseTarjetaSuave("flex min-h-[420px] flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:shadow-xl")}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setQuickViewProduct(product)}
+                    className="group relative flex aspect-[4/3] items-center justify-center bg-muted/60"
+                  >
                     {product.imageUrl ? (
                       <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
                     ) : (
                       <PackageCheck className="h-12 w-12 text-primary" />
                     )}
-                  </div>
-                  <div className="flex flex-1 flex-col p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">{product.category}</p>
-                        <h3 className="mt-1 text-base font-semibold leading-6 text-foreground">{product.name}</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">{product.brand || "Sin marca"}</p>
-                      </div>
-                      <span className="rounded-lg bg-success/10 px-2.5 py-1 text-xs font-semibold text-success ring-1 ring-success/25">
-                        Compra
-                      </span>
+                    <span className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-background/90 text-muted-foreground opacity-0 shadow transition group-hover:opacity-100">
+                      <Eye className="h-4 w-4" />
+                    </span>
+                  </button>
+                  <div className="flex flex-1 flex-col p-3.5">
+                    <div className="flex flex-wrap gap-1.5">
+                      {isBestSeller && (
+                        <span className="rounded-lg bg-info/10 px-2 py-0.5 text-[11px] font-semibold text-info ring-1 ring-info/20">
+                          Mas vendido
+                        </span>
+                      )}
+                      {isOffer && (
+                        <span className="rounded-lg bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-500/20 dark:text-amber-300">
+                          Oferta
+                        </span>
+                      )}
                     </div>
-                    <div className="mt-4 flex items-end justify-between gap-3">
-                      <div>
-                        <p className="text-lg font-semibold text-foreground">{formatCurrency(product.salePrice)}</p>
-                        <p className="text-xs text-muted-foreground">{product.available} disponibles</p>
-                      </div>
+                    <button type="button" onClick={() => setQuickViewProduct(product)} className="mt-2 text-left">
+                      <p className="text-xs font-medium text-muted-foreground">{product.category}</p>
+                      <h3 className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground">
+                        {product.name}
+                      </h3>
+                    </button>
+                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      <p>SKU: {product.barcode || product.id}</p>
+                      <p>Marca: {product.brand || "Sin marca"}</p>
+                      <p>
+                        {getProductPresentation(product)} | Unidad: {getSaleUnit(product)}
+                      </p>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 ${stockIndicator.className}`}>
+                        <span className={`h-2 w-2 rounded-full ${stockIndicator.dotClassName}`} />
+                        {stockIndicator.label}
+                      </span>
+                      <span className="text-xs font-medium text-muted-foreground">{product.available} disp.</span>
+                    </div>
+                    <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+                      <p className="text-xl font-bold text-foreground">{formatCurrency(product.salePrice)}</p>
                       {quantity > 0 ? (
-                        <div className="flex items-center rounded-lg border border-border bg-background">
+                        <div className="flex h-10 items-center rounded-lg border border-border bg-background">
                           <button
                             type="button"
                             onClick={() => updateQuantity(product.id, -1)}
                             aria-label={`Restar ${product.name}`}
-                            className="flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                            className="flex h-10 w-9 items-center justify-center text-muted-foreground transition hover:text-foreground"
                           >
                             <Minus className="h-4 w-4" />
                           </button>
@@ -434,7 +726,7 @@ export default function ClienteView() {
                             type="button"
                             onClick={() => updateQuantity(product.id, 1)}
                             aria-label={`Agregar ${product.name}`}
-                            className="flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                            className="flex h-10 w-9 items-center justify-center text-muted-foreground transition hover:text-foreground"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -442,8 +734,9 @@ export default function ClienteView() {
                       ) : (
                         <button
                           type="button"
+                          disabled={product.available <= 0}
                           onClick={() => updateQuantity(product.id, 1)}
-                          className={claseBotonPrimario("h-10 gap-2 px-3 text-sm")}
+                          className={claseBotonPrimario("h-10 gap-2 px-3 text-sm disabled:pointer-events-none disabled:opacity-45")}
                         >
                           <Plus className="h-4 w-4" />
                           Agregar
@@ -455,74 +748,11 @@ export default function ClienteView() {
               );
             })}
           </div>
-        </section>
-      )}
-
-      {activeSection === "pedido" && (
-        <section id="pedido" className={claseTarjeta("mx-auto max-w-3xl overflow-hidden")}>
-          <div className="flex items-center justify-between border-b border-border/70 p-4">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-              <h2 className="text-base font-semibold text-foreground">Mi pedido</h2>
+          {filteredProducts.length === 0 && (
+            <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              No encontramos productos con esos filtros.
             </div>
-            <span className="text-sm font-medium text-muted-foreground">{cartProducts.length} productos</span>
-          </div>
-
-          <div className="p-4">
-            {cartProducts.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                Tu pedido esta vacio. Agrega productos desde el catalogo.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {cartProducts.map((product) => (
-                  <div key={product.id} className="flex gap-3 rounded-lg border border-border bg-background p-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <PackageCheck className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {product.quantity} x {formatCurrency(product.salePrice)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(product.id)}
-                      aria-label={`Quitar ${product.name}`}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2 border-t border-border/70 p-4 text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Subtotal</span>
-              <span>{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Envio</span>
-              <span>{deliveryFee === 0 ? "Gratis" : formatCurrency(deliveryFee)}</span>
-            </div>
-            <div className="flex justify-between pt-2 text-base font-semibold text-foreground">
-              <span>Total</span>
-              <span>{formatCurrency(total)}</span>
-            </div>
-            <button
-              type="button"
-              disabled={cartProducts.length === 0}
-              onClick={handlePayOrder}
-              className={claseBotonPrimario("mt-4 h-11 w-full gap-2 px-4 text-sm disabled:pointer-events-none disabled:opacity-45")}
-            >
-              <BadgeCheck className="h-4 w-4" />
-              Pagar
-            </button>
-          </div>
+          )}
         </section>
       )}
 
@@ -702,9 +932,9 @@ export default function ClienteView() {
           <div className="flex flex-col gap-2 border-b border-border/70 p-4 sm:p-5">
             <div className="flex items-center gap-2">
               <ReceiptText className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-semibold text-foreground">Pago</h2>
+              <h2 className="text-xl font-semibold text-foreground">Mis compras</h2>
             </div>
-            <p className="text-sm text-muted-foreground">Consulta las facturas generadas por tus pagos.</p>
+            <p className="text-sm text-muted-foreground">Consulta pedidos anteriores y repite compras frecuentes.</p>
           </div>
 
           <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-2 xl:grid-cols-3">
@@ -731,20 +961,268 @@ export default function ClienteView() {
                     <span>Total</span>
                     <span>{formatCurrency(invoice.total)}</span>
                   </div>
+                  <div className="mt-2 flex justify-between text-sm text-muted-foreground">
+                    <span>Metodo</span>
+                    <span>{getPaymentMethodLabel(invoice.paymentMethod)}</span>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectedInvoice(invoice)}
-                    className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Ver factura
-                  </button>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => handleBuyAgain(invoice)}
+                      className={claseBotonPrimario("h-10 gap-2 px-3 text-sm")}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Comprar nuevamente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedInvoice(invoice)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Ver factura
+                    </button>
+                  </div>
                 </article>
               ))
             )}
           </div>
         </section>
+      )}
+
+      {activeSection === "catalogo" && (
+        <button
+          type="button"
+          onClick={() => setIsCartDrawerOpen(true)}
+          className={`fixed bottom-5 right-5 z-40 w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-primary/25 bg-card p-3 text-left shadow-2xl transition duration-300 hover:-translate-y-0.5 ${
+            animatedCart ? "scale-105 ring-4 ring-primary/20" : "scale-100"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/25">
+              <ShoppingCart className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-foreground">{cartTotalItems} productos</span>
+              <span className="block text-lg font-bold text-foreground">{formatCurrency(subtotal)}</span>
+            </span>
+          </div>
+          <span className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground">
+            Ver pedido
+          </span>
+        </button>
+      )}
+
+      <div className={`fixed inset-0 z-50 ${isCartDrawerOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
+        <button
+          type="button"
+          onClick={() => setIsCartDrawerOpen(false)}
+          aria-label="Cerrar pedido"
+          className={`absolute inset-0 bg-black/35 transition-opacity ${isCartDrawerOpen ? "opacity-100" : "opacity-0"}`}
+        />
+        <aside
+          className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl transition-transform duration-300 ${
+            isCartDrawerOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-border/70 p-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Pedido</p>
+              <h2 className="text-lg font-semibold text-foreground">Carrito lateral</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCartDrawerOpen(false)}
+              aria-label="Cerrar carrito"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            {cartProducts.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                Tu pedido esta vacio. Agrega productos desde el catalogo.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cartProducts.map((product) => (
+                  <div key={product.id} className="rounded-lg border border-border bg-background p-3">
+                    <div className="flex gap-3">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary">
+                        {product.imageUrl ? (
+                          <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <PackageCheck className="h-5 w-5" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-semibold text-foreground">{product.name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatCurrency(product.salePrice)} | {product.available} disponibles
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(product.id)}
+                        aria-label={`Quitar ${product.name}`}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="flex h-10 items-center rounded-lg border border-border bg-card">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(product.id, -1)}
+                          aria-label={`Restar ${product.name}`}
+                          className="flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <span className="w-10 text-center text-sm font-semibold text-foreground">{product.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(product.id, 1)}
+                          aria-label={`Agregar ${product.name}`}
+                          className="flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">
+                        {formatCurrency(product.quantity * product.salePrice)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border/70 p-4">
+            <div className="mb-4 rounded-lg border border-border bg-muted/25 p-3">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium text-foreground">
+                  {freeShippingRemaining > 0
+                    ? `Te faltan ${formatCurrency(freeShippingRemaining)} para envio gratis`
+                    : "Envio gratis desbloqueado"}
+                </span>
+                <Truck className="h-4 w-4 text-primary" />
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-background">
+                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${freeShippingProgress}%` }} />
+              </div>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Envio</span>
+                <span>{deliveryFee === 0 ? "Gratis" : formatCurrency(deliveryFee)}</span>
+              </div>
+              <div className="flex justify-between pt-2 text-lg font-semibold text-foreground">
+                <span>Total</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={cartProducts.length === 0}
+              onClick={handlePayOrder}
+              className={claseBotonPrimario("mt-4 h-11 w-full gap-2 px-4 text-sm disabled:pointer-events-none disabled:opacity-45")}
+            >
+              <BadgeCheck className="h-4 w-4" />
+              Finalizar compra
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      {quickViewProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 p-4">
+              <h3 className="text-lg font-semibold text-foreground">Vista rapida</h3>
+              <button
+                type="button"
+                onClick={() => setQuickViewProduct(null)}
+                aria-label="Cerrar producto"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid gap-5 p-4 sm:p-5 md:grid-cols-[280px_minmax(0,1fr)]">
+              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-muted/60">
+                {quickViewProduct.imageUrl ? (
+                  <img src={quickViewProduct.imageUrl} alt={quickViewProduct.name} className="h-full w-full object-cover" />
+                ) : (
+                  <PackageCheck className="h-16 w-16 text-primary" />
+                )}
+              </div>
+              <div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary ring-1 ring-primary/20">
+                    {quickViewProduct.category}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 ${getStockIndicator(quickViewProduct.available).className}`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${getStockIndicator(quickViewProduct.available).dotClassName}`} />
+                    {getStockIndicator(quickViewProduct.available).label}
+                  </span>
+                </div>
+                <h3 className="mt-3 text-2xl font-semibold text-foreground">{quickViewProduct.name}</h3>
+                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                  <p>Marca: {quickViewProduct.brand || "Sin marca"}</p>
+                  <p>SKU: {quickViewProduct.barcode || quickViewProduct.id}</p>
+                  <p>Existencia: {quickViewProduct.available}</p>
+                  <p>Unidad: {getSaleUnit(quickViewProduct)}</p>
+                  <p className="sm:col-span-2">Presentacion: {getProductPresentation(quickViewProduct)}</p>
+                </div>
+                <p className="mt-5 text-3xl font-bold text-foreground">{formatCurrency(quickViewProduct.salePrice)}</p>
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <div className="flex h-11 items-center rounded-lg border border-border bg-background">
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(quickViewProduct.id, -1)}
+                      aria-label={`Restar ${quickViewProduct.name}`}
+                      className="flex h-11 w-11 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <span className="w-12 text-center text-sm font-semibold text-foreground">
+                      {cartItems.find((item) => item.productId === quickViewProduct.id)?.quantity ?? 0}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(quickViewProduct.id, 1)}
+                      aria-label={`Agregar ${quickViewProduct.name}`}
+                      className="flex h-11 w-11 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={quickViewProduct.available <= 0}
+                    onClick={() => updateQuantity(quickViewProduct.id, 1)}
+                    className={claseBotonPrimario("h-11 gap-2 px-4 text-sm disabled:pointer-events-none disabled:opacity-45")}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Agregar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {selectedInvoice && (

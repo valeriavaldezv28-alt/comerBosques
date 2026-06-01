@@ -71,7 +71,7 @@ const customerMenuItems = [
   {
     key: "payment",
     icon: CreditCard,
-    label: "Pago",
+    label: "Mis compras",
     path: `${ROUTE_PATHS.cliente}#pago`,
   },
 ] as const;
