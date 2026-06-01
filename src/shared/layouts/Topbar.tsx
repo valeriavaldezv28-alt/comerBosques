@@ -92,7 +92,7 @@ export const BarraSuperior = ({ isSidebarOpen, onMenuClick }: BarraSuperiorProps
 
         <div className="hidden min-w-0 sm:block">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            {isCustomerProfile ? "Vista publica" : "Panel ERP"}
+            {isCustomerProfile ? "Vista publica" : "Administracion"}
           </p>
           <h1 className="truncate text-lg font-semibold text-foreground">
             {isCustomerProfile ? "Cliente" : "Inventario"}

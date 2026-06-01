@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   Boxes,
   ChevronDown,
+  CheckCircle2,
   CircleDollarSign,
   ClipboardList,
   FolderUp,
@@ -21,7 +22,11 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { productsStorageKey, productsUpdatedEvent } from "@/features/comercializadora/storage";
+import {
+  inventoryMovementsStorageKey,
+  productsStorageKey,
+  productsUpdatedEvent,
+} from "@/features/comercializadora/storage";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
 type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
@@ -47,6 +52,19 @@ type InventoryProduct = {
 };
 
 type ProductForm = Omit<InventoryProduct, "available" | "lastMovement">;
+
+type InventoryMovement = {
+  id: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  previousStock: number;
+  newStock: number;
+  stockUnit: StockUnit;
+  createdAt: string;
+  type: "entrada";
+};
 
 const categoryOptions = ["Aceites", "Bebidas", "Abarrotes", "Limpieza"] as const;
 type CategoryOption = (typeof categoryOptions)[number];
@@ -113,6 +131,14 @@ const formatCurrency = (value: number) =>
     currency: "MXN",
     maximumFractionDigits: 2,
   }).format(value);
+
+const formatMovementDate = (date: string) =>
+  new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
 
 const getStockQuantity = (product: Pick<InventoryProduct, "stockUnit" | "boxes" | "kilos" | "stockTotal">) =>
   product.stockUnit === "kilos" ? product.kilos || product.stockTotal : product.boxes || product.stockTotal;
@@ -213,14 +239,34 @@ const loadStoredProducts = (): InventoryProduct[] => {
   }
 };
 
+const loadInventoryMovements = (): InventoryMovement[] => {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const storedMovements = window.localStorage.getItem(inventoryMovementsStorageKey);
+    return storedMovements ? (JSON.parse(storedMovements) as InventoryMovement[]) : [];
+  } catch {
+    return [];
+  }
+};
+
 export default function DashboardView() {
   const [products, setProducts] = useState<InventoryProduct[]>(loadStoredProducts);
+  const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>(loadInventoryMovements);
   const [searchTerm, setSearchTerm] = useState("");
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
+  const [isStockEntryOpen, setIsStockEntryOpen] = useState(false);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [stockSearchTerm, setStockSearchTerm] = useState("");
+  const [stockQuantity, setStockQuantity] = useState("");
+  const [stockSuccessMessage, setStockSuccessMessage] = useState("");
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const stockSearchInputRef = useRef<HTMLInputElement>(null);
+  const stockQuantityInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const nextProductId = useMemo(() => getNextProductId(products), [products]);
@@ -230,7 +276,14 @@ export default function DashboardView() {
   }, [products]);
 
   useEffect(() => {
-    const reloadProducts = () => setProducts(loadStoredProducts());
+    window.localStorage.setItem(inventoryMovementsStorageKey, JSON.stringify(inventoryMovements));
+  }, [inventoryMovements]);
+
+  useEffect(() => {
+    const reloadProducts = () => {
+      setProducts(loadStoredProducts());
+      setInventoryMovements(loadInventoryMovements());
+    };
 
     window.addEventListener(productsUpdatedEvent, reloadProducts);
     window.addEventListener("storage", reloadProducts);
@@ -253,6 +306,31 @@ export default function DashboardView() {
     window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
   }, [editingProductId, isProductFormOpen, nextProductId]);
 
+  const selectedStockProduct = useMemo(() => {
+    const normalizedSearch = stockSearchTerm.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return null;
+    }
+
+    return (
+      products.find((product) =>
+        [product.barcode, product.id]
+          .filter(Boolean)
+          .some((productCode) => productCode.toLowerCase() === normalizedSearch),
+      ) ?? null
+    );
+  }, [products, stockSearchTerm]);
+
+  useEffect(() => {
+    if (!isStockEntryOpen) {
+      return;
+    }
+
+    const inputToFocus = selectedStockProduct ? stockQuantityInputRef.current : stockSearchInputRef.current;
+    window.setTimeout(() => inputToFocus?.focus(), 0);
+  }, [isStockEntryOpen, selectedStockProduct]);
+
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -273,7 +351,9 @@ export default function DashboardView() {
   const soldOutProducts = products.filter((product) => getStatus(product) === "agotado").length;
   const inventoryValue = products.reduce((total, product) => total + getStockQuantity(product) * product.salePrice, 0);
   const lowStockProducts = products.filter((product) => getStatus(product) !== "disponible");
-  const recentProducts = products.slice(0, 4);
+  const stockQuantityNumber = Number(stockQuantity) || 0;
+  const currentStockQuantity = selectedStockProduct ? getStockQuantity(selectedStockProduct) : 0;
+  const newStockQuantity = currentStockQuantity + stockQuantityNumber;
 
   const updateProductForm = (field: keyof ProductForm, value: string) => {
     setProductForm((currentForm) => ({
@@ -387,6 +467,38 @@ export default function DashboardView() {
     setIsProductFormOpen(true);
   };
 
+  const openStockEntryForm = (product?: InventoryProduct) => {
+    setStockSearchTerm(product?.barcode || product?.id || "");
+    setStockQuantity("");
+    setStockSuccessMessage("");
+    setIsStockEntryOpen(true);
+  };
+
+  const resetStockEntryForm = () => {
+    setStockSearchTerm("");
+    setStockQuantity("");
+    window.setTimeout(() => stockSearchInputRef.current?.focus(), 0);
+  };
+
+  const closeStockEntryForm = () => {
+    setIsStockEntryOpen(false);
+    setStockSearchTerm("");
+    setStockQuantity("");
+    setStockSuccessMessage("");
+  };
+
+  const handleStockSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (selectedStockProduct) {
+      window.setTimeout(() => stockQuantityInputRef.current?.focus(), 0);
+    }
+  };
+
   const handleEditProduct = (product: InventoryProduct) => {
     setEditingProductId(product.id);
     setProductForm({
@@ -416,6 +528,54 @@ export default function DashboardView() {
     }
 
     setProducts((currentProducts) => currentProducts.filter((product) => product.id !== productId));
+  };
+
+  const handleAddStock = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!selectedStockProduct || stockQuantityNumber <= 0) {
+      return;
+    }
+
+    const movementDate = new Date().toISOString();
+
+    setProducts((currentProducts) =>
+      currentProducts.map((product) => {
+        if (product.id !== selectedStockProduct.id) {
+          return product;
+        }
+
+        const previousStock = getStockQuantity(product);
+        const nextStock = previousStock + stockQuantityNumber;
+
+        return {
+          ...product,
+          boxes: product.stockUnit === "cajas" ? nextStock : product.boxes,
+          kilos: product.stockUnit === "kilos" ? nextStock : product.kilos,
+          stockTotal: nextStock,
+          available: nextStock,
+          lastMovement: `Entrada inventario: +${stockQuantityNumber} ${product.stockUnit}`,
+        };
+      }),
+    );
+
+    setInventoryMovements((currentMovements) => [
+      {
+        id: `MOV-${Date.now()}`,
+        productId: selectedStockProduct.id,
+        productName: selectedStockProduct.name,
+        sku: selectedStockProduct.barcode || selectedStockProduct.id,
+        quantity: stockQuantityNumber,
+        previousStock: currentStockQuantity,
+        newStock: newStockQuantity,
+        stockUnit: selectedStockProduct.stockUnit,
+        createdAt: movementDate,
+        type: "entrada",
+      },
+      ...currentMovements,
+    ]);
+    setStockSuccessMessage(`Stock agregado a ${selectedStockProduct.name}. Nuevo stock: ${newStockQuantity} ${selectedStockProduct.stockUnit}.`);
+    resetStockEntryForm();
   };
 
   const handleCreateProduct = (event: FormEvent<HTMLFormElement>) => {
@@ -531,7 +691,7 @@ export default function DashboardView() {
                 Lectura rapida de stock, alertas y movimientos del almacen.
               </p>
             </div>
-            <div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-2xl">
+            <div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-3xl">
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
@@ -545,10 +705,18 @@ export default function DashboardView() {
               <button
                 type="button"
                 onClick={openNewProductForm}
-                className={claseBotonPrimario("h-11 gap-2 px-5 text-sm font-semibold shadow-lg shadow-primary/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25")}
+                className={claseBotonPrimario("h-11 shrink-0 gap-2 px-5 text-sm font-semibold shadow-lg shadow-primary/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25")}
               >
                 <Plus className="h-4 w-4" />
-                Nuevo producto
+                Nuevo Producto
+              </button>
+              <button
+                type="button"
+                onClick={() => openStockEntryForm()}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-5 text-sm font-semibold text-primary transition hover:-translate-y-0.5 hover:bg-primary/15"
+              >
+                <PackagePlus className="h-4 w-4" />
+                Agregar Stock
               </button>
             </div>
           </div>
@@ -631,17 +799,19 @@ export default function DashboardView() {
               </span>
               <div>
                 <h3 className="text-sm font-bold text-foreground">Movimientos recientes</h3>
-                <p className="text-xs font-medium text-muted-foreground">Ultimas entradas al catalogo</p>
+                <p className="text-xs font-medium text-muted-foreground">Ultimas entradas al inventario</p>
               </div>
             </div>
             <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="mt-3 space-y-2">
-            {recentProducts.length > 0 ? (
-              recentProducts.map((product) => (
-                <div key={product.id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="truncate font-semibold text-foreground">{product.name}</span>
-                  <span className="shrink-0 text-xs font-medium text-muted-foreground">{formatStockQuantity(product)}</span>
+            {inventoryMovements.length > 0 ? (
+              inventoryMovements.slice(0, 4).map((movement) => (
+                <div key={movement.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-semibold text-foreground">{movement.productName}</span>
+                  <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                    +{movement.quantity} {movement.stockUnit}
+                  </span>
                 </div>
               ))
             ) : (
@@ -667,7 +837,7 @@ export default function DashboardView() {
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             {[
-              { label: "Entradas", value: "0", icon: PackagePlus },
+              { label: "Entradas", value: String(inventoryMovements.length), icon: PackagePlus },
               { label: "Ventas", value: "0", icon: ShoppingCart },
               { label: "Ajustes", value: "0", icon: ClipboardList },
             ].map((item) => {
@@ -713,7 +883,15 @@ export default function DashboardView() {
               className={claseBotonPrimario("h-10 shrink-0 gap-2 px-4 text-sm font-semibold")}
             >
               <Plus className="h-4 w-4" />
-              Nuevo producto
+              Nuevo Producto
+            </button>
+            <button
+              type="button"
+              onClick={() => openStockEntryForm()}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
+            >
+              <PackagePlus className="h-4 w-4" />
+              Agregar Stock
             </button>
           </div>
         ) : (
@@ -789,6 +967,14 @@ export default function DashboardView() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
+                            onClick={() => openStockEntryForm(product)}
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                          >
+                            <PackagePlus className="h-4 w-4" />
+                            Stock
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleEditProduct(product)}
                             className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:bg-primary/5"
                           >
@@ -829,8 +1015,24 @@ export default function DashboardView() {
             <h3 className="text-sm font-bold text-foreground">Ultimas entradas</h3>
             <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
-            Sin entradas registradas.
+          <div className="mt-3 space-y-2">
+            {inventoryMovements.length > 0 ? (
+              inventoryMovements.slice(0, 3).map((movement) => (
+                <div key={movement.id} className="rounded-lg border border-border/70 bg-muted/25 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="truncate font-semibold text-foreground">{movement.productName}</span>
+                    <span className="shrink-0 font-bold text-success">+{movement.quantity}</span>
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">
+                    {movement.previousStock} a {movement.newStock} {movement.stockUnit} · {formatMovementDate(movement.createdAt)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
+                Sin entradas registradas.
+              </div>
+            )}
           </div>
         </article>
 
@@ -844,6 +1046,163 @@ export default function DashboardView() {
           </div>
         </article>
       </section>
+
+      {isStockEntryOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/55 p-3 sm:p-6">
+          <form
+            onSubmit={handleAddStock}
+            className="my-auto flex w-full max-w-3xl flex-col rounded-lg bg-card shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Agregar Stock</h3>
+                <p className="text-sm text-muted-foreground">
+                  Escanea o escribe codigo de barras, SKU o ID del producto.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeStockEntryForm}
+                aria-label="Cerrar entrada de inventario"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid gap-4 p-5">
+              {stockSuccessMessage && (
+                <div className="flex items-center gap-2 rounded-lg border border-success/25 bg-success/10 px-3 py-2 text-sm font-semibold text-success">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {stockSuccessMessage}
+                </div>
+              )}
+
+              <label className="space-y-1.5 text-sm font-medium text-foreground">
+                <span>Buscar producto</span>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    ref={stockSearchInputRef}
+                    value={stockSearchTerm}
+                    onChange={(event) => {
+                      setStockSearchTerm(event.target.value);
+                      setStockSuccessMessage("");
+                      setStockQuantity("");
+                    }}
+                    onKeyDown={handleStockSearchKeyDown}
+                    placeholder="7501055300001, SKU o PROD-000001"
+                    className="h-12 w-full rounded-lg border border-input bg-background pl-10 pr-3 font-mono text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  />
+                </div>
+              </label>
+
+              {stockSearchTerm.trim() && !selectedStockProduct && (
+                <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
+                  Producto no encontrado. Verifica el codigo, SKU o ID.
+                </div>
+              )}
+
+              {selectedStockProduct && (
+                <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
+                  <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
+                    {selectedStockProduct.imageUrl ? (
+                      <img
+                        src={selectedStockProduct.imageUrl}
+                        alt={selectedStockProduct.name}
+                        className="h-44 w-full object-cover lg:h-full"
+                      />
+                    ) : (
+                      <div className="flex h-44 w-full items-center justify-center text-primary lg:h-full">
+                        <ImagePlus className="h-10 w-10" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3">
+                    <div className="flex items-center gap-2 rounded-lg border border-success/25 bg-success/10 px-3 py-2 text-sm font-bold text-success">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Producto encontrado
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {[
+                        { label: "Nombre", value: selectedStockProduct.name },
+                        { label: "Codigo/SKU", value: selectedStockProduct.barcode || selectedStockProduct.id },
+                        { label: "ID", value: selectedStockProduct.id },
+                        { label: "Categoria", value: selectedStockProduct.category },
+                        { label: "Precio", value: formatCurrency(selectedStockProduct.salePrice) },
+                        { label: "Stock actual", value: formatStockQuantity(selectedStockProduct) },
+                      ].map((item) => (
+                        <div key={item.label} className="rounded-lg border border-border bg-muted/25 px-3 py-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {item.label}
+                          </p>
+                          <p className="mt-1 break-words text-sm font-bold text-foreground">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                      <span>Cantidad a ingresar</span>
+                      <input
+                        ref={stockQuantityInputRef}
+                        required
+                        type="number"
+                        min="0.01"
+                        step={selectedStockProduct.stockUnit === "kilos" ? "0.01" : "1"}
+                        value={stockQuantity}
+                        onChange={(event) => setStockQuantity(event.target.value)}
+                        placeholder="0"
+                        className="h-12 w-full rounded-lg border border-input bg-background px-3 text-lg font-bold outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      />
+                    </label>
+
+                    <div className="grid gap-2 rounded-lg border border-border bg-background p-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-muted-foreground">Stock actual</span>
+                        <span className="font-bold text-foreground">
+                          {currentStockQuantity} {selectedStockProduct.stockUnit}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-muted-foreground">Cantidad recibida</span>
+                        <span className="font-bold text-foreground">
+                          {stockQuantityNumber} {selectedStockProduct.stockUnit}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
+                        <span className="font-bold text-foreground">Nuevo stock</span>
+                        <span className="text-lg font-bold text-success">
+                          {newStockQuantity} {selectedStockProduct.stockUnit}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-border p-5">
+              <button
+                type="button"
+                onClick={closeStockEntryForm}
+                className="h-10 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={!selectedStockProduct || stockQuantityNumber <= 0}
+                className={claseBotonPrimario("h-10 gap-2 px-4 text-sm disabled:pointer-events-none disabled:opacity-50")}
+              >
+                <PackagePlus className="h-4 w-4" />
+                Agregar Stock
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {isProductFormOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/55">
