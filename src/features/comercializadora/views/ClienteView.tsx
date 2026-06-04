@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   BadgeCheck,
@@ -6,6 +7,7 @@ import {
   CreditCard,
   Eye,
   FileText,
+  LayoutGrid,
   MapPin,
   Minus,
   PackageCheck,
@@ -14,7 +16,6 @@ import {
   ReceiptText,
   RotateCcw,
   Search,
-  SlidersHorizontal,
   ShoppingCart,
   Sparkles,
   Trash2,
@@ -74,6 +75,26 @@ type CustomerSection = "catalogo" | "pedido" | "checkout" | "pago";
 type AvailabilityFilter = "all" | "available" | "low";
 
 const FREE_SHIPPING_THRESHOLD = 500;
+const allCategoriesLabel = "Todos los departamentos";
+const cleaningAndHomeLabel = "Limpieza y Hogar";
+const departmentOptions = [
+  "Despensa",
+  "Lácteos y Huevo",
+  "Botanas, Dulces y Galletas",
+  "Granel",
+  cleaningAndHomeLabel,
+  "Higiene Personal y Belleza",
+  "Bebidas",
+  "Cervezas, Vinos y Licores",
+  "Farmacia y Bienestar",
+];
+const cleaningAndHomeSubcategories = [
+  "Hogar",
+  "Papel Higiénico y Pañuelos",
+  "Lavandería",
+  "Desechables",
+  "Limpieza General",
+];
 
 const fallbackProducts: CatalogProduct[] = [
   {
@@ -102,7 +123,7 @@ const fallbackProducts: CatalogProduct[] = [
     id: "DEMO-003",
     barcode: "7501035910017",
     name: "Limpiador multiusos 1 L",
-    category: "Limpieza",
+    category: cleaningAndHomeLabel,
     brand: "Fabuloso",
     salePrice: 31,
     imageUrl: "",
@@ -228,22 +249,27 @@ const getSaleUnit = (product: CatalogProduct) => {
 };
 
 const getCategoryOptions = (products: CatalogProduct[]) => {
-  const requestedCategories = ["Abarrotes", "Aceites", "Bebidas", "Limpieza"];
+  const requestedCategories = [allCategoriesLabel, ...departmentOptions];
   const productCategories = Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
-  return ["Todas las categorias", ...requestedCategories, ...productCategories.filter((category) => !requestedCategories.includes(category))];
+  return [...requestedCategories, ...productCategories.filter((category) => !requestedCategories.includes(category))];
 };
+
+const normalizeCatalogProduct = (product: CatalogProduct): CatalogProduct => ({
+  ...product,
+  category: product.category === "Limpieza" ? cleaningAndHomeLabel : product.category,
+});
 
 const loadCatalogProducts = (): CatalogProduct[] => {
   if (typeof window === "undefined") {
-    return fallbackProducts;
+    return fallbackProducts.map(normalizeCatalogProduct);
   }
 
   try {
     const storedProducts = window.localStorage.getItem(productsStorageKey);
     const parsedProducts = storedProducts ? (JSON.parse(storedProducts) as CatalogProduct[]) : [];
-    return storedProducts ? parsedProducts : fallbackProducts;
+    return (storedProducts ? parsedProducts : fallbackProducts).map(normalizeCatalogProduct);
   } catch {
-    return fallbackProducts;
+    return fallbackProducts.map(normalizeCatalogProduct);
   }
 };
 
@@ -288,10 +314,13 @@ export default function ClienteView() {
   const [cartItems, setCartItems] = useState<CartItem[]>(loadCartItems);
   const [invoices, setInvoices] = useState<Invoice[]>(loadInvoices);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("Todas las categorias");
+  const [catalogToolbarTarget, setCatalogToolbarTarget] = useState<HTMLElement | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState(allCategoriesLabel);
   const [selectedBrand, setSelectedBrand] = useState("Todas las marcas");
   const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>("all");
   const [maxPrice, setMaxPrice] = useState(1000);
+  const [isDepartmentsOpen, setIsDepartmentsOpen] = useState(false);
+  const [activeDepartmentSubmenu, setActiveDepartmentSubmenu] = useState<string | null>(null);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(location.hash === "#pedido");
   const [animatedCart, setAnimatedCart] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState<CatalogProduct | null>(null);
@@ -301,7 +330,12 @@ export default function ClienteView() {
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardSecurityCode, setCardSecurityCode] = useState("");
+  const departmentsMenuRef = useRef<HTMLDivElement>(null);
   const activeSection = getCustomerSection(location.hash);
+
+  useEffect(() => {
+    setCatalogToolbarTarget(document.getElementById("customer-catalog-toolbar"));
+  }, []);
 
   useEffect(() => {
     if (location.hash === "#pedido") {
@@ -322,6 +356,38 @@ export default function ClienteView() {
     window.localStorage.setItem(productsStorageKey, JSON.stringify(products));
     notifyProductsUpdated();
   }, [products]);
+
+  useEffect(() => {
+    if (!isDepartmentsOpen) {
+      setActiveDepartmentSubmenu(null);
+      return;
+    }
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (!departmentsMenuRef.current?.contains(event.target as Node)) {
+        setIsDepartmentsOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsDepartmentsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleDocumentClick);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isDepartmentsOpen]);
+
+  const selectCategory = (category: string) => {
+    setSelectedCategory(category);
+    setIsDepartmentsOpen(false);
+  };
 
   const highestPrice = useMemo(
     () => Math.max(100, Math.ceil(Math.max(...products.map((product) => product.salePrice), 100) / 50) * 50),
@@ -349,8 +415,7 @@ export default function ClienteView() {
         .join(" ")
         .toLowerCase()
         .includes(normalizedSearch);
-      const matchesCategory =
-        selectedCategory === "Todas las categorias" || product.category === selectedCategory;
+      const matchesCategory = selectedCategory === allCategoriesLabel || product.category === selectedCategory;
       const matchesBrand = selectedBrand === "Todas las marcas" || product.brand === selectedBrand;
       const matchesAvailability =
         availabilityFilter === "all" ||
@@ -516,11 +581,165 @@ export default function ClienteView() {
     navigate(ROUTE_PATHS.cliente);
   };
 
+  const departmentsToolbar = (
+    <div className="relative z-30 flex w-full max-w-80 rounded-lg border border-border/60 bg-card px-3 py-3 shadow-sm">
+      <div ref={departmentsMenuRef} className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            setIsDepartmentsOpen((isOpen) => !isOpen);
+            setActiveDepartmentSubmenu(null);
+          }}
+          aria-expanded={isDepartmentsOpen}
+          aria-haspopup="menu"
+          className="flex h-12 w-full items-center gap-3 rounded-lg border-l-2 border-primary/20 bg-card px-3 text-left text-base font-semibold text-foreground transition hover:bg-muted/60 md:w-64"
+        >
+          <LayoutGrid className="h-6 w-6 shrink-0 text-foreground" />
+          <span className="truncate">Departamentos</span>
+        </button>
+
+        {isDepartmentsOpen && (
+          <div
+            role="menu"
+            className="absolute left-0 top-full z-[60] mt-2 max-h-[min(32rem,calc(100vh-13rem))] w-[min(30rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-border/70 bg-popover shadow-2xl md:mt-3 md:w-[31rem]"
+          >
+            <div className="py-3 md:py-5">
+              {activeDepartmentSubmenu === cleaningAndHomeLabel ? (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => setActiveDepartmentSubmenu(null)}
+                    className="block w-full px-5 py-2.5 text-left text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground transition hover:bg-muted/60 md:px-10"
+                  >
+                    Departamentos
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => selectCategory(cleaningAndHomeLabel)}
+                    className={`block w-full px-5 py-2.5 text-left text-base font-semibold italic transition hover:bg-muted/60 md:px-10 md:text-lg ${
+                      selectedCategory === cleaningAndHomeLabel ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    Ver todos
+                  </button>
+                  {cleaningAndHomeSubcategories.map((subcategory) => (
+                    <button
+                      key={subcategory}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => selectCategory(subcategory)}
+                      className={`block w-full px-5 py-2.5 text-left text-base font-medium transition hover:bg-muted/60 md:px-10 md:text-lg ${
+                        selectedCategory === subcategory ? "text-primary" : "text-muted-foreground"
+                      }`}
+                    >
+                      {subcategory}
+                    </button>
+                  ))}
+                </>
+              ) : (
+                categoryOptions.map((category, index) => {
+                  const isCleaningDepartment = category === cleaningAndHomeLabel;
+                  const isSelected =
+                    selectedCategory === category ||
+                    (isCleaningDepartment && cleaningAndHomeSubcategories.includes(selectedCategory));
+
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        if (isCleaningDepartment) {
+                          setActiveDepartmentSubmenu(category);
+                          return;
+                        }
+
+                        selectCategory(category);
+                      }}
+                      className={`block w-full px-5 py-2.5 text-left text-base font-medium transition hover:bg-muted/60 md:px-10 md:text-lg ${
+                        isSelected ? "text-primary" : "text-muted-foreground"
+                      } ${index === 0 ? "mb-4 text-base" : ""}`}
+                    >
+                      {category}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => selectCategory(cleaningAndHomeLabel)}
+                          className={`block w-full px-8 py-2.5 text-left text-base font-semibold italic transition hover:bg-muted/60 md:px-14 md:text-lg ${
+                            selectedCategory === cleaningAndHomeLabel ? "text-primary" : "text-muted-foreground"
+                          }`}
+                        >
+                          Ver todos
+                        </button>
+                        {cleaningAndHomeSubcategories.map((subcategory) => (
+                          <button
+                            key={subcategory}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => selectCategory(subcategory)}
+                            className={`block w-full px-8 py-2.5 text-left text-base font-medium transition hover:bg-muted/60 md:px-14 md:text-lg ${
+                              selectedCategory === subcategory ? "text-primary" : "text-muted-foreground"
+                            }`}
+                          >
+                            {subcategory}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="relative min-w-0 flex-1">
+        <Search className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-foreground/75" />
+        <input
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          aria-label="Buscar productos"
+          placeholder="Busca productos"
+          className="h-12 w-full rounded-full border border-transparent bg-muted/45 pl-14 pr-4 text-base outline-none transition placeholder:text-muted-foreground focus:border-primary/40 focus:bg-background focus:ring-2 focus:ring-ring/20"
+        />
+        {searchSuggestions.length > 0 && (
+          <div className="absolute left-0 right-0 top-14 z-40 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+            {searchSuggestions.map((product) => (
+              <button
+                key={`suggestion-${product.id}`}
+                type="button"
+                onClick={() => setSearchTerm(product.name)}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-muted"
+              >
+                <span className="min-w-0 truncate font-medium text-foreground">{product.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{product.brand || product.category}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="mx-auto w-full max-w-[1500px]">
+      {catalogToolbarTarget ? createPortal(departmentsToolbar, catalogToolbarTarget) : null}
       {activeSection === "catalogo" && (
         <section className="space-y-4">
-          <div className={claseTarjeta("overflow-hidden")}>
+          <div className={claseTarjeta("overflow-visible")}>
             <div className="grid gap-4 border-b border-border/70 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Catalogo</p>
@@ -548,66 +767,33 @@ export default function ClienteView() {
             </div>
 
             <div className="space-y-4 p-4 sm:p-5">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="relative w-full lg:max-w-xl">
-                  <Search className="pointer-events-none absolute left-3 top-[22px] h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    aria-label="Buscar productos"
-                    placeholder="Buscar por nombre, marca, categoria, SKU o codigo..."
-                    className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-ring/20"
-                  />
-                  {searchSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-12 z-20 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
-                      {searchSuggestions.map((product) => (
-                        <button
-                          key={`suggestion-${product.id}`}
-                          type="button"
-                          onClick={() => setSearchTerm(product.name)}
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-muted"
-                        >
-                          <span className="min-w-0 truncate font-medium text-foreground">{product.name}</span>
-                          <span className="shrink-0 text-xs text-muted-foreground">{product.brand || product.category}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCartDrawerOpen(true)}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:bg-primary/10"
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                  Ver pedido
-                </button>
-              </div>
-
-              <div className="grid gap-3 rounded-lg border border-border bg-muted/25 p-3 lg:grid-cols-[1.2fr_1fr_1fr_1fr]">
-                <div>
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Categorias
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {categoryOptions.map((category) => (
+              <div className="relative w-full lg:max-w-3xl">
+                <Search className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-foreground/75" />
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  aria-label="Buscar productos"
+                  placeholder="Busca productos"
+                  className="h-12 w-full rounded-full border border-transparent bg-muted/45 pl-14 pr-4 text-base outline-none transition placeholder:text-muted-foreground focus:border-primary/40 focus:bg-background focus:ring-2 focus:ring-ring/20"
+                />
+                {searchSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-14 z-40 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+                    {searchSuggestions.map((product) => (
                       <button
-                        key={category}
+                        key={`suggestion-${product.id}`}
                         type="button"
-                        onClick={() => setSelectedCategory(category)}
-                        className={`h-9 rounded-lg px-3 text-xs font-semibold transition ${
-                          selectedCategory === category
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-background text-muted-foreground ring-1 ring-border hover:text-foreground"
-                        }`}
+                        onClick={() => setSearchTerm(product.name)}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-muted"
                       >
-                        {category}
+                        <span className="min-w-0 truncate font-medium text-foreground">{product.name}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{product.brand || product.category}</span>
                       </button>
                     ))}
                   </div>
-                </div>
+                )}
+              </div>
 
+              <div className="grid gap-3 rounded-lg border border-border bg-muted/25 p-3 lg:grid-cols-3">
                 <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   <span>Marca</span>
                   <select

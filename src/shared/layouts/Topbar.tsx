@@ -77,7 +77,7 @@ export const BarraSuperior = ({ isSidebarOpen, onMenuClick }: BarraSuperiorProps
   };
 
   return (
-    <header className="flex items-center justify-between gap-3 border-b border-border/70 bg-card px-4 py-3 shadow-[0_10px_28px_hsl(var(--foreground)/0.04)] lg:px-6">
+    <header className="relative z-50 flex items-center justify-between gap-3 overflow-visible border-b border-border/70 bg-card px-4 py-3 shadow-[0_10px_28px_hsl(var(--foreground)/0.04)] lg:px-6">
       <div className="flex w-full items-center gap-3">
         <button
           type="button"
@@ -99,7 +99,11 @@ export const BarraSuperior = ({ isSidebarOpen, onMenuClick }: BarraSuperiorProps
           </h1>
         </div>
 
-        <div className="flex-1" />
+        {isCustomerProfile ? (
+          <div id="customer-catalog-toolbar" className="min-w-0 flex-1 px-2 lg:px-4" />
+        ) : (
+          <div className="flex-1" />
+        )}
         <BotonTema />
 
         <div className="flex items-center gap-3 border-l border-border/70 pl-4">

@@ -66,7 +66,8 @@ type InventoryMovement = {
   type: "entrada";
 };
 
-const categoryOptions = ["Aceites", "Bebidas", "Abarrotes", "Limpieza"] as const;
+const cleaningAndHomeCategory = "Limpieza y Hogar";
+const categoryOptions = ["Aceites", "Bebidas", "Abarrotes", cleaningAndHomeCategory] as const;
 type CategoryOption = (typeof categoryOptions)[number];
 
 const brandOptions = ["Sin marca", "Nutrioli", "Coca-Cola", "Great Value", "Fabuloso"] as const;
@@ -116,7 +117,7 @@ const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
   },
   "7501035910017": {
     name: "Limpiador multiusos 1 L",
-    category: "Limpieza",
+    category: cleaningAndHomeCategory,
     brand: "Fabuloso",
     stockUnit: "cajas",
     salePrice: 31,
@@ -198,6 +199,14 @@ const getStockAlert = (product: InventoryProduct, status: InventoryStatus) => {
 const formatStockQuantity = (product: InventoryProduct) =>
   `${getStockQuantity(product)} ${product.stockUnit}`;
 
+const normalizeProductCategory = (category: string): CategoryOption => {
+  if (category === "Limpieza") {
+    return cleaningAndHomeCategory;
+  }
+
+  return categoryOptions.includes(category as CategoryOption) ? (category as CategoryOption) : "Abarrotes";
+};
+
 const normalizeProduct = (product: InventoryProduct & { unit?: string }): InventoryProduct => {
   const stockUnit = product.stockUnit ?? "cajas";
   const stockTotal = product.stockTotal ?? 0;
@@ -207,6 +216,7 @@ const normalizeProduct = (product: InventoryProduct & { unit?: string }): Invent
 
   return {
     ...product,
+    category: normalizeProductCategory(product.category),
     stockUnit,
     boxes,
     kilos,
