@@ -671,40 +671,6 @@ export default function ClienteView() {
           </div>
         )}
       </div>
-    </div>
-  );
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => selectCategory(cleaningAndHomeLabel)}
-                          className={`block w-full px-8 py-2.5 text-left text-base font-semibold italic transition hover:bg-muted/60 md:px-14 md:text-lg ${
-                            selectedCategory === cleaningAndHomeLabel ? "text-primary" : "text-muted-foreground"
-                          }`}
-                        >
-                          Ver todos
-                        </button>
-                        {cleaningAndHomeSubcategories.map((subcategory) => (
-                          <button
-                            key={subcategory}
-                            type="button"
-                            role="menuitem"
-                            onClick={() => selectCategory(subcategory)}
-                            className={`block w-full px-8 py-2.5 text-left text-base font-medium transition hover:bg-muted/60 md:px-14 md:text-lg ${
-                              selectedCategory === subcategory ? "text-primary" : "text-muted-foreground"
-                            }`}
-                          >
-                            {subcategory}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
 
       <div className="relative min-w-0 flex-1">
         <Search className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-foreground/75" />
