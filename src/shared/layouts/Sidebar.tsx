@@ -121,6 +121,7 @@ export const BarraLateral = ({
           </div>
           <div className="min-w-0">
             <span className="block truncate text-sm font-bold text-foreground">Comercializadora Bosques</span>
+            <span className="block truncate text-sm font-bold text-foreground">Vista Cliente</span>
           </div>
         </div>
         {mode === "mobile" && (
