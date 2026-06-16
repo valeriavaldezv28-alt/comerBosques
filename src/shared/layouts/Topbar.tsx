@@ -1,4 +1,4 @@
-import { Menu, ShoppingCart, UserRound, X } from "lucide-react";
+import { LogOut, Menu, ShoppingCart, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ROUTE_PATHS } from "@/config/routePaths";
@@ -76,6 +76,11 @@ export const BarraSuperior = ({ isSidebarOpen, onMenuClick }: BarraSuperiorProps
     setIsProfileMenuOpen(false);
   };
 
+  const handleLogout = () => {
+    navigate(ROUTE_PATHS.root);
+    setIsProfileMenuOpen(false);
+  };
+
   return (
     <header className="relative z-50 flex items-center justify-between gap-3 overflow-visible border-b border-border/70 bg-card px-4 py-3 shadow-[0_10px_28px_hsl(var(--foreground)/0.04)] lg:px-6">
       <div className="flex w-full items-center gap-3">
@@ -122,45 +127,58 @@ export const BarraSuperior = ({ isSidebarOpen, onMenuClick }: BarraSuperiorProps
               )}
             </button>
           )}
-          <div ref={profileMenuRef} className="relative">
+          {isCustomerProfile ? (
             <button
               type="button"
-              onClick={() => setIsProfileMenuOpen((isOpen) => !isOpen)}
-              aria-expanded={isProfileMenuOpen}
-              aria-haspopup="menu"
-              aria-label="Abrir menu de perfil"
+              onClick={handleLogout}
+              aria-label="Salir"
               className="flex items-center gap-3 rounded-lg text-left transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card xl:py-1 xl:pl-1 xl:pr-2"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <UserRound className="h-4 w-4" />
+                <LogOut className="h-4 w-4" />
               </span>
               <span className="hidden text-right xl:block">
-                <span className="block text-sm font-medium text-foreground">
-                  {isCustomerProfile ? "Cliente" : "Valeria"}
-                </span>
-                <span className="block text-[11px] text-muted-foreground">
-                  {isCustomerProfile ? "Compra publica" : "Administracion"}
-                </span>
+                <span className="block text-sm font-medium text-foreground">Salir</span>
+                <span className="block text-[11px] text-muted-foreground">Cerrar sesion</span>
               </span>
             </button>
-
-            {isProfileMenuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-border bg-popover p-1 shadow-lg"
+          ) : (
+            <div ref={profileMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setIsProfileMenuOpen((isOpen) => !isOpen)}
+                aria-expanded={isProfileMenuOpen}
+                aria-haspopup="menu"
+                aria-label="Abrir menu de perfil"
+                className="flex items-center gap-3 rounded-lg text-left transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card xl:py-1 xl:pl-1 xl:pr-2"
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleProfileNavigation}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-popover-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <UserRound className="h-4 w-4" />
+                </span>
+                <span className="hidden text-right xl:block">
+                  <span className="block text-sm font-medium text-foreground">Valeria</span>
+                  <span className="block text-[11px] text-muted-foreground">Administracion</span>
+                </span>
+              </button>
+
+              {isProfileMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-border bg-popover p-1 shadow-lg"
                 >
-                  <UserRound className="h-4 w-4 text-primary" />
-                  <span>{isCustomerProfile ? "Ir a administracion" : "Vista cliente"}</span>
-                </button>
-              </div>
-            )}
-          </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleProfileNavigation}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-popover-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <UserRound className="h-4 w-4 text-primary" />
+                    <span>Vista cliente</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>

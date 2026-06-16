@@ -671,32 +671,6 @@ export default function ClienteView() {
           </div>
         )}
       </div>
-
-      <div className="relative min-w-0 flex-1">
-        <Search className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-foreground/75" />
-        <input
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          aria-label="Buscar productos"
-          placeholder="Busca productos"
-          className="h-12 w-full rounded-full border border-transparent bg-muted/45 pl-14 pr-4 text-base outline-none transition placeholder:text-muted-foreground focus:border-primary/40 focus:bg-background focus:ring-2 focus:ring-ring/20"
-        />
-        {searchSuggestions.length > 0 && (
-          <div className="absolute left-0 right-0 top-14 z-40 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
-            {searchSuggestions.map((product) => (
-              <button
-                key={`suggestion-${product.id}`}
-                type="button"
-                onClick={() => setSearchTerm(product.name)}
-                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-muted"
-              >
-                <span className="min-w-0 truncate font-medium text-foreground">{product.name}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{product.brand || product.category}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 

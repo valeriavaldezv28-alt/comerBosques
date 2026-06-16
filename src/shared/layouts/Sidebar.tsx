@@ -107,6 +107,11 @@ export const BarraLateral = ({
     onNavigate?.();
   };
 
+  const manejarSalida = () => {
+    navigate(ROUTE_PATHS.root);
+    onNavigate?.();
+  };
+
   const contenidoSidebar = (
     <>
       <div className="mb-6 flex items-center justify-between gap-2">
@@ -188,13 +193,16 @@ export const BarraLateral = ({
           <HelpCircle className="h-[18px] w-[18px]" />
           <span>Ayuda</span>
         </button>
-        <button
-          type="button"
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        >
-          <LogOut className="h-[18px] w-[18px]" />
-          <span>Salir</span>
-        </button>
+        {!isCustomerProfile && (
+          <button
+            type="button"
+            onClick={manejarSalida}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <LogOut className="h-[18px] w-[18px]" />
+            <span>Salir</span>
+          </button>
+        )}
       </div>
     </>
   );
