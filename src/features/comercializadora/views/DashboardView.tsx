@@ -1159,7 +1159,7 @@ export default function DashboardView() {
                         ref={stockQuantityInputRef}
                         required
                         type="number"
-                        min="0.01"
+                        min={selectedStockProduct.stockUnit === "kilos" ? "0.01" : "1"}
                         step={selectedStockProduct.stockUnit === "kilos" ? "0.01" : "1"}
                         value={stockQuantity}
                         onChange={(event) => setStockQuantity(event.target.value)}
