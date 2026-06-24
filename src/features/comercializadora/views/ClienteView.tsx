@@ -38,10 +38,13 @@ type CatalogProduct = {
   name: string;
   category: string;
   brand: string;
-  stockUnit?: "cajas" | "kilos";
+  stockUnit?: StockUnit;
   boxes?: number;
   kilos?: number;
+  pieces?: number;
+  piecesPerBox?: number;
   salePrice: number;
+  tipoPrecio?: PriceType;
   imageUrl: string;
   stockTotal: number;
   available: number;
@@ -51,6 +54,7 @@ type CatalogProduct = {
 type CartItem = {
   productId: string;
   quantity: number;
+  purchaseUnit?: PurchaseUnit;
 };
 
 type PaymentMethod = "efectivo" | "tarjeta";
@@ -73,6 +77,9 @@ type Invoice = {
 
 type CustomerSection = "catalogo" | "pedido" | "checkout" | "pago";
 type AvailabilityFilter = "all" | "available" | "low";
+type StockUnit = "cajas" | "kilos" | "piezas";
+type PriceType = "pieza" | "caja" | "kilo";
+type PurchaseUnit = "pieza" | "caja" | "kilo";
 
 const FREE_SHIPPING_THRESHOLD = 500;
 const allCategoriesLabel = "Todos los departamentos";
@@ -248,16 +255,122 @@ const getSaleUnit = (product: CatalogProduct) => {
   return "Pieza";
 };
 
+const getDefaultPurchaseUnit = (product: CatalogProduct): PurchaseUnit => {
+  if (product.stockUnit === "kilos") {
+    return "kilo";
+  }
+
+  if (product.stockUnit === "cajas") {
+    return "caja";
+  }
+
+  return "pieza";
+};
+
+const getPurchaseOptions = (product: CatalogProduct): PurchaseUnit[] => {
+  if (product.stockUnit === "cajas") {
+    return ["caja", "pieza"];
+  }
+
+  return [getDefaultPurchaseUnit(product)];
+};
+
+const getPurchaseUnitLabel = (unit: PurchaseUnit, quantity = 1) => {
+  if (unit === "kilo") {
+    return quantity === 1 ? "kilo" : "kilos";
+  }
+
+  if (unit === "caja") {
+    return quantity === 1 ? "caja" : "cajas";
+  }
+
+  return quantity === 1 ? "pieza" : "piezas";
+};
+
+const getPriceTypeLabel = (priceType?: PriceType) => {
+  if (priceType === "kilo") {
+    return "kilo";
+  }
+
+  if (priceType === "caja") {
+    return "caja";
+  }
+
+  return "pieza";
+};
+
+const getUnitsPerPurchase = (product: CatalogProduct, purchaseUnit: PurchaseUnit) => {
+  if (product.stockUnit === "cajas" && purchaseUnit === "caja") {
+    return Math.max(1, product.piecesPerBox || 1);
+  }
+
+  return 1;
+};
+
+const getAvailableForPurchase = (product: CatalogProduct, purchaseUnit: PurchaseUnit) => {
+  return getAvailableFromStock(product, purchaseUnit, product.available);
+};
+
+const getAvailableFromStock = (product: CatalogProduct, purchaseUnit: PurchaseUnit, availableStock: number) => {
+  if (product.stockUnit === "cajas" && purchaseUnit === "caja") {
+    return Math.floor(availableStock / Math.max(1, product.piecesPerBox || 1));
+  }
+
+  return availableStock;
+};
+
+const getMinimumPurchaseQuantity = (product: CatalogProduct, purchaseUnit: PurchaseUnit) =>
+  product.stockUnit === "cajas" && purchaseUnit === "pieza" ? 50 : 0;
+
+const getQuantityStep = (purchaseUnit: PurchaseUnit) => (purchaseUnit === "kilo" ? 0.1 : 1);
+
+const getUnitPrice = (product: CatalogProduct, purchaseUnit: PurchaseUnit) => {
+  const priceType = product.tipoPrecio ?? getDefaultPurchaseUnit(product);
+  const piecesPerBox = Math.max(1, product.piecesPerBox || 1);
+
+  if (priceType === purchaseUnit) {
+    return product.salePrice;
+  }
+
+  if (product.stockUnit === "cajas" && priceType === "caja" && purchaseUnit === "pieza") {
+    return product.salePrice / piecesPerBox;
+  }
+
+  if (product.stockUnit === "cajas" && priceType === "pieza" && purchaseUnit === "caja") {
+    return product.salePrice * piecesPerBox;
+  }
+
+  return product.salePrice;
+};
+
 const getCategoryOptions = (products: CatalogProduct[]) => {
   const requestedCategories = [allCategoriesLabel, ...departmentOptions];
   const productCategories = Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
   return [...requestedCategories, ...productCategories.filter((category) => !requestedCategories.includes(category))];
 };
 
-const normalizeCatalogProduct = (product: CatalogProduct): CatalogProduct => ({
-  ...product,
-  category: product.category === "Limpieza" ? cleaningAndHomeLabel : product.category,
-});
+const normalizeCatalogProduct = (product: CatalogProduct): CatalogProduct => {
+  const stockUnit = product.stockUnit ?? "piezas";
+  const piecesPerBox = product.piecesPerBox ?? 0;
+  const boxes = product.boxes ?? (stockUnit === "cajas" ? product.stockTotal : 0);
+  const kilos = product.kilos ?? (stockUnit === "kilos" ? product.stockTotal : 0);
+  const pieces = product.pieces ?? (stockUnit === "piezas" ? product.stockTotal : 0);
+  const stockTotal =
+    stockUnit === "cajas" ? product.stockTotal || boxes * Math.max(1, piecesPerBox || 1) : product.stockTotal;
+
+  return {
+    ...product,
+    category: product.category === "Limpieza" ? cleaningAndHomeLabel : product.category,
+    stockUnit,
+    boxes,
+    kilos,
+    pieces,
+    piecesPerBox,
+    tipoPrecio: product.tipoPrecio ?? getDefaultPurchaseUnit({ ...product, stockUnit }),
+    stockTotal,
+    available: typeof product.available === "number" ? product.available : stockTotal,
+  };
+};
 
 const loadCatalogProducts = (): CatalogProduct[] => {
   if (typeof window === "undefined") {
@@ -280,7 +393,12 @@ const loadCartItems = (): CartItem[] => {
 
   try {
     const storedCart = window.localStorage.getItem(customerCartStorageKey);
-    return storedCart ? (JSON.parse(storedCart) as CartItem[]) : [];
+    return storedCart
+      ? (JSON.parse(storedCart) as CartItem[]).map((item) => ({
+          ...item,
+          purchaseUnit: item.purchaseUnit,
+        }))
+      : [];
   } catch {
     return [];
   }
@@ -449,20 +567,33 @@ export default function ClienteView() {
       cartItems
         .map((item) => {
           const product = products.find((currentProduct) => currentProduct.id === item.productId);
-          return product ? { ...product, quantity: item.quantity } : null;
+          const purchaseUnit = item.purchaseUnit ?? (product ? getDefaultPurchaseUnit(product) : "pieza");
+          return product
+            ? {
+                ...product,
+                quantity: item.quantity,
+                purchaseUnit,
+                unitPrice: getUnitPrice(product, purchaseUnit),
+              }
+            : null;
         })
-        .filter((item): item is CatalogProduct & { quantity: number } => Boolean(item)),
+        .filter(
+          (
+            item,
+          ): item is CatalogProduct & { quantity: number; purchaseUnit: PurchaseUnit; unitPrice: number } =>
+            Boolean(item),
+        ),
     [cartItems, products],
   );
 
-  const subtotal = cartProducts.reduce((total, product) => total + product.salePrice * product.quantity, 0);
+  const subtotal = cartProducts.reduce((total, product) => total + product.unitPrice * product.quantity, 0);
   const deliveryFee = cartProducts.length > 0 && subtotal < FREE_SHIPPING_THRESHOLD ? 35 : 0;
   const total = subtotal + deliveryFee;
   const cartTotalItems = cartProducts.reduce((itemTotal, product) => itemTotal + product.quantity, 0);
   const freeShippingRemaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
   const freeShippingProgress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
 
-  const updateQuantity = (productId: string, quantityChange: number) => {
+  const updateQuantity = (productId: string, quantityChange: number, purchaseUnit?: PurchaseUnit) => {
     if (quantityChange > 0) {
       setAnimatedCart(true);
       window.setTimeout(() => setAnimatedCart(false), 380);
@@ -475,25 +606,107 @@ export default function ClienteView() {
         return currentItems;
       }
 
-      const existingItem = currentItems.find((item) => item.productId === productId);
-      const nextQuantity = Math.min(product.available, Math.max(0, (existingItem?.quantity ?? 0) + quantityChange));
+      const selectedPurchaseUnit = purchaseUnit ?? getDefaultPurchaseUnit(product);
+      const existingItem = currentItems.find(
+        (item) =>
+          item.productId === productId &&
+          (item.purchaseUnit ?? getDefaultPurchaseUnit(product)) === selectedPurchaseUnit,
+      );
+      const reservedStock = currentItems.reduce((reserved, item) => {
+        const itemPurchaseUnit = item.purchaseUnit ?? getDefaultPurchaseUnit(product);
+        return item.productId === productId && itemPurchaseUnit !== selectedPurchaseUnit
+          ? reserved + item.quantity * getUnitsPerPurchase(product, itemPurchaseUnit)
+          : reserved;
+      }, 0);
+      const availableForUnit = getAvailableFromStock(
+        product,
+        selectedPurchaseUnit,
+        Math.max(0, product.available - reservedStock),
+      );
+      const minimumQuantity = getMinimumPurchaseQuantity(product, selectedPurchaseUnit);
+      const startingQuantity = existingItem?.quantity ?? 0;
+      const requestedQuantity =
+        startingQuantity === 0 && quantityChange > 0 && minimumQuantity > 0
+          ? minimumQuantity
+          : startingQuantity + quantityChange;
+      const nextQuantity = Math.min(availableForUnit, Math.max(0, requestedQuantity));
 
-      if (nextQuantity === 0) {
-        return currentItems.filter((item) => item.productId !== productId);
+      if (nextQuantity === 0 || (minimumQuantity > 0 && nextQuantity < minimumQuantity)) {
+        return currentItems.filter(
+          (item) =>
+            !(
+              item.productId === productId &&
+              (item.purchaseUnit ?? getDefaultPurchaseUnit(product)) === selectedPurchaseUnit
+            ),
+        );
       }
 
       if (existingItem) {
         return currentItems.map((item) =>
-          item.productId === productId ? { ...item, quantity: nextQuantity } : item,
+          item.productId === productId &&
+          (item.purchaseUnit ?? getDefaultPurchaseUnit(product)) === selectedPurchaseUnit
+            ? { ...item, quantity: nextQuantity, purchaseUnit: selectedPurchaseUnit }
+            : item,
         );
       }
 
-      return [...currentItems, { productId, quantity: nextQuantity }];
+      return [...currentItems, { productId, quantity: nextQuantity, purchaseUnit: selectedPurchaseUnit }];
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCartItems((currentItems) => currentItems.filter((item) => item.productId !== productId));
+  const getCartQuantity = (product: CatalogProduct, purchaseUnit: PurchaseUnit) =>
+    cartItems.find(
+      (item) => item.productId === product.id && (item.purchaseUnit ?? getDefaultPurchaseUnit(product)) === purchaseUnit,
+    )?.quantity ?? 0;
+
+  const setCartQuantity = (productId: string, purchaseUnit: PurchaseUnit, quantity: number) => {
+    setCartItems((currentItems) => {
+      const product = products.find((currentProduct) => currentProduct.id === productId);
+
+      if (!product) {
+        return currentItems;
+      }
+
+      const reservedStock = currentItems.reduce((reserved, item) => {
+        const itemPurchaseUnit = item.purchaseUnit ?? getDefaultPurchaseUnit(product);
+        return item.productId === productId && itemPurchaseUnit !== purchaseUnit
+          ? reserved + item.quantity * getUnitsPerPurchase(product, itemPurchaseUnit)
+          : reserved;
+      }, 0);
+      const availableForUnit = getAvailableFromStock(product, purchaseUnit, Math.max(0, product.available - reservedStock));
+      const minimumQuantity = getMinimumPurchaseQuantity(product, purchaseUnit);
+      const nextQuantity = Math.min(availableForUnit, Math.max(0, quantity));
+
+      if (nextQuantity === 0 || (minimumQuantity > 0 && nextQuantity < minimumQuantity)) {
+        return currentItems.filter(
+          (item) =>
+            !(
+              item.productId === productId &&
+              (item.purchaseUnit ?? getDefaultPurchaseUnit(product)) === purchaseUnit
+            ),
+        );
+      }
+
+      const hasItem = currentItems.some(
+        (item) => item.productId === productId && (item.purchaseUnit ?? getDefaultPurchaseUnit(product)) === purchaseUnit,
+      );
+
+      if (hasItem) {
+        return currentItems.map((item) =>
+          item.productId === productId && (item.purchaseUnit ?? getDefaultPurchaseUnit(product)) === purchaseUnit
+            ? { ...item, quantity: nextQuantity, purchaseUnit }
+            : item,
+        );
+      }
+
+      return [...currentItems, { productId, quantity: nextQuantity, purchaseUnit }];
+    });
+  };
+
+  const removeFromCart = (productId: string, purchaseUnit?: PurchaseUnit) => {
+    setCartItems((currentItems) =>
+      currentItems.filter((item) => item.productId !== productId || (purchaseUnit && item.purchaseUnit !== purchaseUnit)),
+    );
   };
 
   const handlePayOrder = () => {
@@ -517,7 +730,7 @@ export default function ClienteView() {
         productId: product.id,
         name: product.name,
         quantity: product.quantity,
-        unitPrice: product.salePrice,
+        unitPrice: product.unitPrice,
       })),
       subtotal,
       deliveryFee,
@@ -535,16 +748,21 @@ export default function ClienteView() {
           return product;
         }
 
-        const nextAvailable = Math.max(0, product.available - purchasedProduct.quantity);
-        const nextStockTotal = Math.max(0, product.stockTotal - purchasedProduct.quantity);
+        const deductedStock = purchasedProduct.quantity * getUnitsPerPurchase(product, purchasedProduct.purchaseUnit);
+        const nextAvailable = Math.max(0, product.available - deductedStock);
+        const nextStockTotal = Math.max(0, product.stockTotal - deductedStock);
 
         return {
           ...product,
-          boxes: product.stockUnit === "cajas" ? nextStockTotal : product.boxes,
+          boxes:
+            product.stockUnit === "cajas"
+              ? Math.floor(nextStockTotal / Math.max(1, product.piecesPerBox || 1))
+              : product.boxes,
           kilos: product.stockUnit === "kilos" ? nextStockTotal : product.kilos,
+          pieces: product.stockUnit === "piezas" ? nextStockTotal : product.pieces,
           stockTotal: nextStockTotal,
           available: nextAvailable,
-          lastMovement: `Compra cliente: -${purchasedProduct.quantity}`,
+          lastMovement: `Compra cliente: -${purchasedProduct.quantity} ${getPurchaseUnitLabel(purchasedProduct.purchaseUnit, purchasedProduct.quantity)}`,
         };
       }),
     );
@@ -572,9 +790,10 @@ export default function ClienteView() {
         return {
           productId: product.id,
           quantity: Math.min(product.available, item.quantity),
+          purchaseUnit: getDefaultPurchaseUnit(product),
         };
       })
-      .filter((item): item is CartItem => Boolean(item));
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
     setCartItems(rebuiltItems);
     setIsCartDrawerOpen(true);
@@ -778,15 +997,17 @@ export default function ClienteView() {
 
           <div id="catalogo" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {filteredProducts.map((product) => {
-              const quantity = cartItems.find((item) => item.productId === product.id)?.quantity ?? 0;
               const stockIndicator = getStockIndicator(product.available);
               const isBestSeller = product.stockTotal >= 60;
               const isOffer = product.salePrice < 30;
+              const purchaseOptions = getPurchaseOptions(product);
+              const defaultPurchaseUnit = getDefaultPurchaseUnit(product);
+              const defaultUnitPrice = getUnitPrice(product, defaultPurchaseUnit);
 
               return (
                 <article
                   key={product.id}
-                  className={claseTarjetaSuave("flex min-h-[420px] flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:shadow-xl")}
+                  className={claseTarjetaSuave("flex min-h-[500px] flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:shadow-xl")}
                 >
                   <button
                     type="button"
@@ -817,7 +1038,7 @@ export default function ClienteView() {
                     </div>
                     <button type="button" onClick={() => setQuickViewProduct(product)} className="mt-2 text-left">
                       <p className="text-xs font-medium text-muted-foreground">{product.category}</p>
-                      <h3 className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground">
+                      <h3 className="mt-1 line-clamp-2 min-h-12 text-lg font-bold leading-6 text-foreground">
                         {product.name}
                       </h3>
                     </button>
@@ -825,7 +1046,7 @@ export default function ClienteView() {
                       <p>SKU: {product.barcode || product.id}</p>
                       <p>Marca: {product.brand || "Sin marca"}</p>
                       <p>
-                        {getProductPresentation(product)} | Unidad: {getSaleUnit(product)}
+                        {getProductPresentation(product)} | Venta: {getSaleUnit(product)}
                       </p>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2">
@@ -833,41 +1054,72 @@ export default function ClienteView() {
                         <span className={`h-2 w-2 rounded-full ${stockIndicator.dotClassName}`} />
                         {stockIndicator.label}
                       </span>
-                      <span className="text-xs font-medium text-muted-foreground">{product.available} disp.</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {getAvailableForPurchase(product, defaultPurchaseUnit)} {getPurchaseUnitLabel(defaultPurchaseUnit, 2)} disp.
+                      </span>
                     </div>
-                    <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-                      <p className="text-xl font-bold text-foreground">{formatCurrency(product.salePrice)}</p>
-                      {quantity > 0 ? (
-                        <div className="flex h-10 items-center rounded-lg border border-border bg-background">
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(product.id, -1)}
-                            aria-label={`Restar ${product.name}`}
-                            className="flex h-10 w-9 items-center justify-center text-muted-foreground transition hover:text-foreground"
-                          >
-                            <Minus className="h-4 w-4" />
-                          </button>
-                          <span className="w-8 text-center text-sm font-semibold text-foreground">{quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(product.id, 1)}
-                            aria-label={`Agregar ${product.name}`}
-                            className="flex h-10 w-9 items-center justify-center text-muted-foreground transition hover:text-foreground"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={product.available <= 0}
-                          onClick={() => updateQuantity(product.id, 1)}
-                          className={claseBotonPrimario("h-10 gap-2 px-3 text-sm disabled:pointer-events-none disabled:opacity-45")}
-                        >
-                          <Plus className="h-4 w-4" />
-                          Agregar
-                        </button>
-                      )}
+                    <div className="mt-4">
+                      <p className="text-3xl font-bold text-foreground">{formatCurrency(defaultUnitPrice)}</p>
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        por {getPriceTypeLabel(product.tipoPrecio)}
+                      </p>
+                    </div>
+                    <div className="mt-auto grid gap-2 pt-4">
+                      {purchaseOptions.map((purchaseUnit) => {
+                        const quantity = getCartQuantity(product, purchaseUnit);
+                        const minimumQuantity = getMinimumPurchaseQuantity(product, purchaseUnit);
+                        const step = getQuantityStep(purchaseUnit);
+                        const availableForUnit = getAvailableForPurchase(product, purchaseUnit);
+
+                        return (
+                          <div key={purchaseUnit} className="rounded-lg border border-border bg-background p-2">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold uppercase text-foreground">
+                                {getPurchaseUnitLabel(purchaseUnit)}
+                              </span>
+                              <span className="text-xs font-semibold text-muted-foreground">
+                                {formatCurrency(getUnitPrice(product, purchaseUnit))}
+                              </span>
+                            </div>
+                            <div className="flex h-10 items-center rounded-lg border border-border bg-card">
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(product.id, -step, purchaseUnit)}
+                                aria-label={`Restar ${product.name}`}
+                                className="flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <input
+                                type="number"
+                                min={minimumQuantity || 0}
+                                max={availableForUnit}
+                                step={step}
+                                value={quantity || ""}
+                                onChange={(event) =>
+                                  setCartQuantity(product.id, purchaseUnit, Number(event.target.value) || 0)
+                                }
+                                placeholder={minimumQuantity ? String(minimumQuantity) : "0"}
+                                aria-label={`Cantidad de ${product.name}`}
+                                className="h-9 min-w-0 flex-1 bg-transparent text-center text-sm font-semibold text-foreground outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(product.id, step, purchaseUnit)}
+                                aria-label={`Agregar ${product.name}`}
+                                className="flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                            {minimumQuantity > 0 && (
+                              <p className="mt-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                                Minimo {minimumQuantity} piezas
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </article>
@@ -1022,7 +1274,7 @@ export default function ClienteView() {
                       {product.quantity} x {product.name}
                     </span>
                     <span className="font-medium text-foreground">
-                      {formatCurrency(product.quantity * product.salePrice)}
+                      {formatCurrency(product.quantity * product.unitPrice)}
                     </span>
                   </div>
                 ))}
@@ -1187,12 +1439,13 @@ export default function ClienteView() {
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 text-sm font-semibold text-foreground">{product.name}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {formatCurrency(product.salePrice)} | {product.available} disponibles
+                          {formatCurrency(product.unitPrice)} por {getPurchaseUnitLabel(product.purchaseUnit)} |{" "}
+                          {getAvailableForPurchase(product, product.purchaseUnit)} disponibles
                         </p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => removeFromCart(product.id)}
+                        onClick={() => removeFromCart(product.id, product.purchaseUnit)}
                         aria-label={`Quitar ${product.name}`}
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-destructive"
                       >
@@ -1203,7 +1456,7 @@ export default function ClienteView() {
                       <div className="flex h-10 items-center rounded-lg border border-border bg-card">
                         <button
                           type="button"
-                          onClick={() => updateQuantity(product.id, -1)}
+                          onClick={() => updateQuantity(product.id, -getQuantityStep(product.purchaseUnit), product.purchaseUnit)}
                           aria-label={`Restar ${product.name}`}
                           className="flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
                         >
@@ -1212,7 +1465,7 @@ export default function ClienteView() {
                         <span className="w-10 text-center text-sm font-semibold text-foreground">{product.quantity}</span>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(product.id, 1)}
+                          onClick={() => updateQuantity(product.id, getQuantityStep(product.purchaseUnit), product.purchaseUnit)}
                           aria-label={`Agregar ${product.name}`}
                           className="flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
                         >
@@ -1220,7 +1473,7 @@ export default function ClienteView() {
                         </button>
                       </div>
                       <span className="text-sm font-semibold text-foreground">
-                        {formatCurrency(product.quantity * product.salePrice)}
+                        {formatCurrency(product.quantity * product.unitPrice)}
                       </span>
                     </div>
                   </div>
@@ -1312,38 +1565,77 @@ export default function ClienteView() {
                   <p>Unidad: {getSaleUnit(quickViewProduct)}</p>
                   <p className="sm:col-span-2">Presentacion: {getProductPresentation(quickViewProduct)}</p>
                 </div>
-                <p className="mt-5 text-3xl font-bold text-foreground">{formatCurrency(quickViewProduct.salePrice)}</p>
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <div className="flex h-11 items-center rounded-lg border border-border bg-background">
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(quickViewProduct.id, -1)}
-                      aria-label={`Restar ${quickViewProduct.name}`}
-                      className="flex h-11 w-11 items-center justify-center text-muted-foreground transition hover:text-foreground"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <span className="w-12 text-center text-sm font-semibold text-foreground">
-                      {cartItems.find((item) => item.productId === quickViewProduct.id)?.quantity ?? 0}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(quickViewProduct.id, 1)}
-                      aria-label={`Agregar ${quickViewProduct.name}`}
-                      className="flex h-11 w-11 items-center justify-center text-muted-foreground transition hover:text-foreground"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={quickViewProduct.available <= 0}
-                    onClick={() => updateQuantity(quickViewProduct.id, 1)}
-                    className={claseBotonPrimario("h-11 gap-2 px-4 text-sm disabled:pointer-events-none disabled:opacity-45")}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    Agregar
-                  </button>
+                <p className="mt-5 text-3xl font-bold text-foreground">
+                  {formatCurrency(getUnitPrice(quickViewProduct, getDefaultPurchaseUnit(quickViewProduct)))}
+                </p>
+                <p className="text-xs font-semibold text-muted-foreground">
+                  por {getPriceTypeLabel(quickViewProduct.tipoPrecio)}
+                </p>
+                <div className="mt-5 grid gap-2">
+                  {getPurchaseOptions(quickViewProduct).map((purchaseUnit) => {
+                    const quantity = getCartQuantity(quickViewProduct, purchaseUnit);
+                    const minimumQuantity = getMinimumPurchaseQuantity(quickViewProduct, purchaseUnit);
+                    const step = getQuantityStep(purchaseUnit);
+
+                    return (
+                      <div key={purchaseUnit} className="rounded-lg border border-border bg-background p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-sm font-bold text-foreground">
+                            Comprar por {getPurchaseUnitLabel(purchaseUnit)}
+                          </span>
+                          <span className="text-sm font-semibold text-muted-foreground">
+                            {formatCurrency(getUnitPrice(quickViewProduct, purchaseUnit))}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex h-11 min-w-44 flex-1 items-center rounded-lg border border-border bg-card">
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(quickViewProduct.id, -step, purchaseUnit)}
+                              aria-label={`Restar ${quickViewProduct.name}`}
+                              className="flex h-11 w-11 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <input
+                              type="number"
+                              min={minimumQuantity || 0}
+                              max={getAvailableForPurchase(quickViewProduct, purchaseUnit)}
+                              step={step}
+                              value={quantity || ""}
+                              onChange={(event) =>
+                                setCartQuantity(quickViewProduct.id, purchaseUnit, Number(event.target.value) || 0)
+                              }
+                              placeholder={minimumQuantity ? String(minimumQuantity) : "0"}
+                              className="h-10 min-w-0 flex-1 bg-transparent text-center text-sm font-semibold text-foreground outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(quickViewProduct.id, step, purchaseUnit)}
+                              aria-label={`Agregar ${quickViewProduct.name}`}
+                              className="flex h-11 w-11 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={quickViewProduct.available <= 0}
+                            onClick={() => updateQuantity(quickViewProduct.id, step, purchaseUnit)}
+                            className={claseBotonPrimario("h-11 gap-2 px-4 text-sm disabled:pointer-events-none disabled:opacity-45")}
+                          >
+                            <Sparkles className="h-4 w-4" />
+                            Agregar
+                          </button>
+                        </div>
+                        {minimumQuantity > 0 && (
+                          <p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                            Minimo {minimumQuantity} piezas
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

@@ -30,7 +30,8 @@ import {
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
 type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
-type StockUnit = "cajas" | "kilos";
+type StockUnit = "cajas" | "kilos" | "piezas";
+type PriceType = "pieza" | "caja" | "kilo";
 
 type InventoryProduct = {
   id: string;
@@ -41,9 +42,12 @@ type InventoryProduct = {
   stockUnit: StockUnit;
   boxes: number;
   kilos: number;
+  pieces: number;
+  piecesPerBox: number;
   minStock: number;
   maxStock?: number;
   salePrice: number;
+  tipoPrecio: PriceType;
   taxRate: number;
   imageUrl: string;
   stockTotal: number;
@@ -71,11 +75,17 @@ const categoryOptions = ["Aceites", "Bebidas", "Abarrotes", cleaningAndHomeCateg
 type CategoryOption = (typeof categoryOptions)[number];
 
 const brandOptions = ["Sin marca", "Nutrioli", "Coca-Cola", "Great Value", "Fabuloso"] as const;
-const stockUnitOptions: StockUnit[] = ["cajas", "kilos"];
+const stockUnitOptions: StockUnit[] = ["cajas", "kilos", "piezas"];
+const priceTypeOptions: Array<{ value: PriceType; label: string }> = [
+  { value: "pieza", label: "Precio por pieza" },
+  { value: "caja", label: "Precio por caja" },
+  { value: "kilo", label: "Precio por kilo" },
+];
 
 const stockMinimumByUnit: Record<StockUnit, number> = {
   cajas: 5,
   kilos: 50,
+  piezas: 50,
 };
 
 const emptyProductForm: ProductForm = {
@@ -87,9 +97,12 @@ const emptyProductForm: ProductForm = {
   stockUnit: "cajas",
   boxes: 0,
   kilos: 0,
+  pieces: 0,
+  piecesPerBox: 0,
   minStock: stockMinimumByUnit.cajas,
   maxStock: 0,
   salePrice: 0,
+  tipoPrecio: "caja",
   taxRate: 16,
   imageUrl: "",
   stockTotal: 0,
@@ -141,8 +154,53 @@ const formatMovementDate = (date: string) =>
     minute: "2-digit",
   }).format(new Date(date));
 
-const getStockQuantity = (product: Pick<InventoryProduct, "stockUnit" | "boxes" | "kilos" | "stockTotal">) =>
-  product.stockUnit === "kilos" ? product.kilos || product.stockTotal : product.boxes || product.stockTotal;
+const getStockQuantity = (
+  product: Pick<InventoryProduct, "stockUnit" | "boxes" | "kilos" | "pieces" | "piecesPerBox" | "stockTotal">,
+) => {
+  if (product.stockUnit === "kilos") {
+    return product.kilos || product.stockTotal;
+  }
+
+  if (product.stockUnit === "piezas") {
+    return product.pieces || product.stockTotal;
+  }
+
+  return product.boxes || Math.floor((product.stockTotal || 0) / Math.max(1, product.piecesPerBox || 1));
+};
+
+const getSellableStock = (
+  product: Pick<InventoryProduct, "stockUnit" | "boxes" | "kilos" | "pieces" | "piecesPerBox" | "stockTotal">,
+) => {
+  if (product.stockUnit === "cajas") {
+    return product.stockTotal || product.boxes * Math.max(1, product.piecesPerBox || 1);
+  }
+
+  return getStockQuantity(product);
+};
+
+const getStockTotalFromForm = (form: ProductForm) => {
+  if (form.stockUnit === "kilos") {
+    return form.kilos;
+  }
+
+  if (form.stockUnit === "piezas") {
+    return form.pieces;
+  }
+
+  return form.boxes * Math.max(1, form.piecesPerBox || 0);
+};
+
+const getPriceTypeForUnit = (stockUnit: StockUnit): PriceType => {
+  if (stockUnit === "kilos") {
+    return "kilo";
+  }
+
+  if (stockUnit === "piezas") {
+    return "pieza";
+  }
+
+  return "caja";
+};
 
 const getMinimumStock = (stockUnit: StockUnit) => stockMinimumByUnit[stockUnit];
 
@@ -196,8 +254,37 @@ const getStockAlert = (product: InventoryProduct, status: InventoryStatus) => {
   return "Stock suficiente";
 };
 
-const formatStockQuantity = (product: InventoryProduct) =>
-  `${getStockQuantity(product)} ${product.stockUnit}`;
+const formatUnitLabel = (unit: StockUnit) => {
+  if (unit === "kilos") {
+    return "kilos";
+  }
+
+  if (unit === "piezas") {
+    return "piezas";
+  }
+
+  return "cajas";
+};
+
+const formatPriceType = (priceType: PriceType) => {
+  if (priceType === "kilo") {
+    return "kilo";
+  }
+
+  if (priceType === "pieza") {
+    return "pieza";
+  }
+
+  return "caja";
+};
+
+const formatStockQuantity = (product: InventoryProduct) => {
+  if (product.stockUnit === "cajas") {
+    return `${product.boxes} cajas (${getSellableStock(product)} piezas)`;
+  }
+
+  return `${getStockQuantity(product)} ${formatUnitLabel(product.stockUnit)}`;
+};
 
 const normalizeProductCategory = (category: string): CategoryOption => {
   if (category === "Limpieza") {
@@ -207,12 +294,19 @@ const normalizeProductCategory = (category: string): CategoryOption => {
   return categoryOptions.includes(category as CategoryOption) ? (category as CategoryOption) : "Abarrotes";
 };
 
-const normalizeProduct = (product: InventoryProduct & { unit?: string }): InventoryProduct => {
+const normalizeProduct = (product: InventoryProduct & { unit?: string; price?: number; priceType?: PriceType }): InventoryProduct => {
   const stockUnit = product.stockUnit ?? "cajas";
   const stockTotal = product.stockTotal ?? 0;
   const boxes = product.boxes ?? (stockUnit === "cajas" ? Number(product.unit) || stockTotal : 0);
   const kilos = product.kilos ?? (stockUnit === "kilos" ? stockTotal : 0);
-  const quantity = stockUnit === "kilos" ? kilos : boxes;
+  const piecesPerBox = product.piecesPerBox ?? 0;
+  const pieces = product.pieces ?? (stockUnit === "piezas" ? stockTotal : 0);
+  const quantity =
+    stockUnit === "kilos"
+      ? kilos
+      : stockUnit === "piezas"
+        ? pieces
+        : stockTotal || boxes * Math.max(1, piecesPerBox || 1);
 
   return {
     ...product,
@@ -220,7 +314,11 @@ const normalizeProduct = (product: InventoryProduct & { unit?: string }): Invent
     stockUnit,
     boxes,
     kilos,
+    pieces,
+    piecesPerBox,
     minStock: getMinimumStock(stockUnit),
+    salePrice: product.salePrice ?? product.price ?? 0,
+    tipoPrecio: product.tipoPrecio ?? product.priceType ?? getPriceTypeForUnit(stockUnit),
     stockTotal: quantity,
     available: typeof product.available === "number" ? product.available : quantity,
   };
@@ -359,7 +457,10 @@ export default function DashboardView() {
   const availableProducts = products.filter((product) => getStatus(product) === "disponible").length;
   const lowAvailabilityProducts = products.filter((product) => getStatus(product) === "poca disponibilidad").length;
   const soldOutProducts = products.filter((product) => getStatus(product) === "agotado").length;
-  const inventoryValue = products.reduce((total, product) => total + getStockQuantity(product) * product.salePrice, 0);
+  const inventoryValue = products.reduce((total, product) => {
+    const stockForPrice = product.tipoPrecio === "caja" ? product.boxes : getSellableStock(product);
+    return total + stockForPrice * product.salePrice;
+  }, 0);
   const lowStockProducts = products.filter((product) => getStatus(product) !== "disponible");
   const stockQuantityNumber = Number(stockQuantity) || 0;
   const currentStockQuantity = selectedStockProduct ? getStockQuantity(selectedStockProduct) : 0;
@@ -368,7 +469,7 @@ export default function DashboardView() {
   const updateProductForm = (field: keyof ProductForm, value: string) => {
     setProductForm((currentForm) => ({
       ...currentForm,
-      [field]: ["boxes", "kilos", "minStock", "maxStock", "salePrice", "taxRate", "stockTotal"].includes(field)
+      [field]: ["boxes", "kilos", "pieces", "piecesPerBox", "minStock", "maxStock", "salePrice", "taxRate", "stockTotal"].includes(field)
         ? Number(value)
         : value,
     }));
@@ -385,10 +486,18 @@ export default function DashboardView() {
     setProductForm((currentForm) => ({
       ...currentForm,
       stockUnit,
-      boxes: stockUnit === "kilos" ? 0 : currentForm.boxes,
-      kilos: stockUnit === "cajas" ? 0 : currentForm.kilos,
+      boxes: stockUnit === "cajas" ? currentForm.boxes : 0,
+      kilos: stockUnit === "kilos" ? currentForm.kilos : 0,
+      pieces: stockUnit === "piezas" ? currentForm.pieces : 0,
+      piecesPerBox: stockUnit === "cajas" ? currentForm.piecesPerBox : 0,
       minStock: getMinimumStock(stockUnit),
-      stockTotal: stockUnit === "kilos" ? currentForm.kilos : currentForm.boxes,
+      tipoPrecio: getPriceTypeForUnit(stockUnit),
+      stockTotal:
+        stockUnit === "kilos"
+          ? currentForm.kilos
+          : stockUnit === "piezas"
+            ? currentForm.pieces
+            : currentForm.boxes * Math.max(1, currentForm.piecesPerBox || 0),
     }));
   };
 
@@ -413,6 +522,7 @@ export default function DashboardView() {
       brand: suggestion.brand ?? currentForm.brand,
       stockUnit: suggestion.stockUnit ?? currentForm.stockUnit,
       salePrice: suggestion.salePrice ?? currentForm.salePrice,
+      tipoPrecio: suggestion.tipoPrecio ?? currentForm.tipoPrecio,
       minStock: suggestion.stockUnit ? getMinimumStock(suggestion.stockUnit) : currentForm.minStock,
       taxRate: suggestion.taxRate ?? currentForm.taxRate,
       imageUrl: suggestion.imageUrl ?? currentForm.imageUrl,
@@ -463,7 +573,10 @@ export default function DashboardView() {
       stockUnit: productForm.stockUnit,
       boxes: 0,
       kilos: 0,
+      pieces: 0,
+      piecesPerBox: productForm.stockUnit === "cajas" ? productForm.piecesPerBox : 0,
       minStock: getMinimumStock(productForm.stockUnit),
+      tipoPrecio: getPriceTypeForUnit(productForm.stockUnit),
     });
     window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
   };
@@ -520,9 +633,12 @@ export default function DashboardView() {
       stockUnit: product.stockUnit,
       boxes: product.boxes,
       kilos: product.kilos,
+      pieces: product.pieces,
+      piecesPerBox: product.piecesPerBox,
       minStock: getMinimumStock(product.stockUnit),
       maxStock: product.maxStock ?? 0,
       salePrice: product.salePrice,
+      tipoPrecio: product.tipoPrecio,
       taxRate: product.taxRate,
       imageUrl: product.imageUrl,
       stockTotal: getStockQuantity(product),
@@ -562,8 +678,9 @@ export default function DashboardView() {
           ...product,
           boxes: product.stockUnit === "cajas" ? nextStock : product.boxes,
           kilos: product.stockUnit === "kilos" ? nextStock : product.kilos,
-          stockTotal: nextStock,
-          available: nextStock,
+          pieces: product.stockUnit === "piezas" ? nextStock : product.pieces,
+          stockTotal: product.stockUnit === "cajas" ? nextStock * Math.max(1, product.piecesPerBox || 1) : nextStock,
+          available: product.stockUnit === "cajas" ? nextStock * Math.max(1, product.piecesPerBox || 1) : nextStock,
           lastMovement: `Entrada inventario: +${stockQuantityNumber} ${product.stockUnit}`,
         };
       }),
@@ -584,7 +701,9 @@ export default function DashboardView() {
       },
       ...currentMovements,
     ]);
-    setStockSuccessMessage(`Stock agregado a ${selectedStockProduct.name}. Nuevo stock: ${newStockQuantity} ${selectedStockProduct.stockUnit}.`);
+    setStockSuccessMessage(
+      `Stock agregado a ${selectedStockProduct.name}. Nuevo stock: ${newStockQuantity} ${formatUnitLabel(selectedStockProduct.stockUnit)}.`,
+    );
     resetStockEntryForm();
   };
 
@@ -595,7 +714,7 @@ export default function DashboardView() {
     const shouldContinue = submitter?.value === "continue";
 
     if (editingProductId) {
-      const stockTotal = productForm.stockUnit === "kilos" ? productForm.kilos : productForm.boxes;
+      const stockTotal = getStockTotalFromForm(productForm);
 
       setProducts((currentProducts) =>
         currentProducts.map((product) =>
@@ -605,6 +724,7 @@ export default function DashboardView() {
                 ...productForm,
                 id: editingProductId,
                 minStock: getMinimumStock(productForm.stockUnit),
+                tipoPrecio: productForm.tipoPrecio,
                 stockTotal,
                 available: stockTotal,
               }
@@ -616,7 +736,7 @@ export default function DashboardView() {
     }
 
     const createdProductId = getNextProductId(products);
-    const stockTotal = productForm.stockUnit === "kilos" ? productForm.kilos : productForm.boxes;
+    const stockTotal = getStockTotalFromForm(productForm);
     const nextAvailableId = getNextProductId([
       { ...productForm, id: createdProductId, minStock: getMinimumStock(productForm.stockUnit), stockTotal, available: stockTotal },
       ...products,
@@ -630,6 +750,7 @@ export default function DashboardView() {
           ...productForm,
           id: newProductId,
           minStock: getMinimumStock(productForm.stockUnit),
+          tipoPrecio: productForm.tipoPrecio,
           stockTotal,
           available: stockTotal,
           lastMovement: "Producto creado con stock inicial",
@@ -820,7 +941,7 @@ export default function DashboardView() {
                 <div key={movement.id} className="flex items-center justify-between gap-3 text-sm">
                   <span className="truncate font-semibold text-foreground">{movement.productName}</span>
                   <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                    +{movement.quantity} {movement.stockUnit}
+                    +{movement.quantity} {formatUnitLabel(movement.stockUnit)}
                   </span>
                 </div>
               ))
@@ -948,7 +1069,7 @@ export default function DashboardView() {
                       <td className="whitespace-nowrap px-4 py-3">
                         <p className="text-base font-bold text-foreground">{formatStockQuantity(product)}</p>
                         <p className="text-xs font-medium text-muted-foreground">
-                          Min. {getMinimumStock(product.stockUnit)} {product.stockUnit}
+                          Min. {getMinimumStock(product.stockUnit)} {formatUnitLabel(product.stockUnit)}
                         </p>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -969,7 +1090,9 @@ export default function DashboardView() {
                           <div className="mt-2 grid min-w-56 gap-1 rounded-lg border border-border bg-background p-3 text-xs font-medium text-muted-foreground shadow-lg">
                             <span>Categoria: {product.category}</span>
                             <span>Codigo: {product.barcode}</span>
-                            <span>Precio: {formatCurrency(product.salePrice)}</span>
+                            <span>
+                              Precio: {formatCurrency(product.salePrice)} por {formatPriceType(product.tipoPrecio)}
+                            </span>
                           </div>
                         </details>
                       </td>
@@ -1172,19 +1295,19 @@ export default function DashboardView() {
                       <div className="flex items-center justify-between gap-3">
                         <span className="font-medium text-muted-foreground">Stock actual</span>
                         <span className="font-bold text-foreground">
-                          {currentStockQuantity} {selectedStockProduct.stockUnit}
+                          {currentStockQuantity} {formatUnitLabel(selectedStockProduct.stockUnit)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="font-medium text-muted-foreground">Cantidad recibida</span>
                         <span className="font-bold text-foreground">
-                          {stockQuantityNumber} {selectedStockProduct.stockUnit}
+                          {stockQuantityNumber} {formatUnitLabel(selectedStockProduct.stockUnit)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
                         <span className="font-bold text-foreground">Nuevo stock</span>
                         <span className="text-lg font-bold text-success">
-                          {newStockQuantity} {selectedStockProduct.stockUnit}
+                          {newStockQuantity} {formatUnitLabel(selectedStockProduct.stockUnit)}
                         </span>
                       </div>
                     </div>
@@ -1240,8 +1363,14 @@ export default function DashboardView() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
-              <div className="rounded-lg border border-border bg-muted/20 p-4">
-                <div className="grid gap-3">
+              <section className="rounded-lg border border-border bg-muted/20 p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-semibold text-foreground">Informacion General</h4>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    ID: <span className="font-mono text-foreground">{productForm.id || nextProductId}</span>
+                  </span>
+                </div>
+                <div className="grid gap-4">
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     <span>Codigo de barras</span>
                     <input
@@ -1254,87 +1383,85 @@ export default function DashboardView() {
                       className="h-11 w-full rounded-lg border border-input bg-background px-3 font-mono text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
                   </label>
-                </div>
-                <p className="mt-3 text-xs font-medium text-muted-foreground">
-                  ID automatico: <span className="font-mono text-foreground">{productForm.id || nextProductId}</span>
-                </p>
-              </div>
-
-              <div className="mt-4 grid gap-4">
-                <label className="space-y-1.5 text-sm font-medium text-foreground">
-                  <span>Nombre producto</span>
-                  <input
-                    ref={nameInputRef}
-                    required
-                    value={productForm.name}
-                    onChange={(event) => updateProductForm("name", event.target.value)}
-                    placeholder="Nombre sugerido o captura manual"
-                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                  />
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Categoria</span>
-                    <select
-                      required
-                      value={productForm.category}
-                      onChange={(event) => updateProductCategory(event.target.value as CategoryOption)}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    >
-                      {categoryOptions.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
 
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Marca</span>
-                    <select
+                    <span>Nombre producto</span>
+                    <input
+                      ref={nameInputRef}
                       required
-                      value={productForm.brand}
-                      onChange={(event) => updateProductForm("brand", event.target.value)}
+                      value={productForm.name}
+                      onChange={(event) => updateProductForm("name", event.target.value)}
+                      placeholder="Nombre sugerido o captura manual"
                       className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    >
-                      {brandOptions.map((brand) => (
-                        <option key={brand} value={brand}>
-                          {brand}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </label>
-                </div>
 
-                <div className="rounded-lg border border-border bg-muted/20 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-semibold text-foreground">Unidad, cajas y kilos</h4>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      Minimo: {getMinimumStock(productForm.stockUnit)} {productForm.stockUnit}
-                    </span>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <label className="space-y-1.5 text-sm font-medium text-foreground">
-                      <span>Unidad</span>
+                      <span>Categoria</span>
                       <select
                         required
-                        value={productForm.stockUnit}
-                        onChange={(event) => updateStockUnit(event.target.value as StockUnit)}
+                        value={productForm.category}
+                        onChange={(event) => updateProductCategory(event.target.value as CategoryOption)}
                         className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                       >
-                        {stockUnitOptions.map((stockUnit) => (
-                          <option key={stockUnit} value={stockUnit}>
-                            {stockUnit}
+                        {categoryOptions.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
                           </option>
                         ))}
                       </select>
                     </label>
 
                     <label className="space-y-1.5 text-sm font-medium text-foreground">
-                      <span>Cajas</span>
+                      <span>Marca</span>
+                      <select
+                        required
+                        value={productForm.brand}
+                        onChange={(event) => updateProductForm("brand", event.target.value)}
+                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      >
+                        {brandOptions.map((brand) => (
+                          <option key={brand} value={brand}>
+                            {brand}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              </section>
+
+              <section className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-semibold text-foreground">Inventario</h4>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Minimo: {getMinimumStock(productForm.stockUnit)} {formatUnitLabel(productForm.stockUnit)}
+                  </span>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Unidad</span>
+                    <select
+                      required
+                      value={productForm.stockUnit}
+                      onChange={(event) => updateStockUnit(event.target.value as StockUnit)}
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    >
+                      {stockUnitOptions.map((stockUnit) => (
+                        <option key={stockUnit} value={stockUnit}>
+                          {formatUnitLabel(stockUnit)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {productForm.stockUnit === "cajas" && (
+                    <>
+                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                      <span>Cantidad de cajas</span>
                       <input
-                        required={productForm.stockUnit === "cajas"}
+                        required
                         type="number"
                         min="0"
                         step="1"
@@ -1346,9 +1473,26 @@ export default function DashboardView() {
                     </label>
 
                     <label className="space-y-1.5 text-sm font-medium text-foreground">
-                      <span>Kilos</span>
+                      <span>Piezas por caja</span>
                       <input
-                        required={productForm.stockUnit === "kilos"}
+                        required
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={productForm.piecesPerBox || ""}
+                        onChange={(event) => updateProductForm("piecesPerBox", event.target.value)}
+                        placeholder="0"
+                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      />
+                    </label>
+                    </>
+                  )}
+
+                  {productForm.stockUnit === "kilos" && (
+                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                      <span>Cantidad en kilos</span>
+                      <input
+                        required
                         type="number"
                         min="0"
                         step="0.01"
@@ -1358,9 +1502,28 @@ export default function DashboardView() {
                         className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                       />
                     </label>
-                  </div>
-                </div>
+                  )}
 
+                  {productForm.stockUnit === "piezas" && (
+                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                      <span>Piezas disponibles</span>
+                      <input
+                        required
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={productForm.pieces || ""}
+                        onChange={(event) => updateProductForm("pieces", event.target.value)}
+                        placeholder="0"
+                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      />
+                    </label>
+                  )}
+                </div>
+              </section>
+
+              <section className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
+                <h4 className="mb-3 text-sm font-semibold text-foreground">Precio</h4>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="space-y-1.5 text-sm font-medium text-foreground">
                     <span>Precio</span>
@@ -1375,9 +1538,26 @@ export default function DashboardView() {
                       className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
                     />
                   </label>
-                </div>
 
-                <div className="space-y-1.5 text-sm font-medium text-foreground">
+                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <span>Tipo de precio</span>
+                    <select
+                      required
+                      value={productForm.tipoPrecio}
+                      onChange={(event) => updateProductForm("tipoPrecio", event.target.value)}
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    >
+                      {priceTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <div className="mt-4 space-y-1.5 text-sm font-medium text-foreground">
                   <span>Imagen</span>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -1396,7 +1576,6 @@ export default function DashboardView() {
                     onChange={(event) => updateProductImage(event.target.files?.[0] ?? null)}
                     className="hidden"
                   />
-                </div>
               </div>
 
               <div className="mt-5 rounded-lg border border-border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
