@@ -693,7 +693,6 @@ export default function DashboardView() {
     };
 
     setProducts((currentProducts) =>
-<<<<<<< HEAD
       currentProducts.map((product) => {
         if (product.id !== selectedStockProduct.id) {
           return product;
@@ -712,11 +711,6 @@ export default function DashboardView() {
           lastMovement: `Entrada inventario: +${stockQuantityNumber} ${product.stockUnit}`,
         };
       }),
-=======
-      currentProducts.map((product) =>
-        product.id === selectedStockProduct.id ? updatedProduct : product,
-      ),
->>>>>>> 8898339f3443ca0d5e8ddd82da3a6df67f459c2e
     );
     apiUpdateProduct(selectedStockProduct.id, updatedProduct as unknown as Record<string, unknown>).catch(() => {});
 
@@ -748,24 +742,7 @@ export default function DashboardView() {
     const shouldContinue = submitter?.value === "continue";
 
     if (editingProductId) {
-<<<<<<< HEAD
       const stockTotal = getStockTotalFromForm(productForm);
-
-      setProducts((currentProducts) =>
-        currentProducts.map((product) =>
-          product.id === editingProductId
-            ? {
-                ...product,
-                ...productForm,
-                id: editingProductId,
-                minStock: getMinimumStock(productForm.stockUnit),
-                tipoPrecio: productForm.tipoPrecio,
-                stockTotal,
-                available: stockTotal,
-              }
-            : product,
-=======
-      const stockTotal = productForm.stockUnit === "kilos" ? productForm.kilos : productForm.boxes;
       const updatedProduct = {
         ...(products.find((p) => p.id === editingProductId) ?? {}),
         ...productForm,
@@ -778,7 +755,6 @@ export default function DashboardView() {
       setProducts((currentProducts) =>
         currentProducts.map((product) =>
           product.id === editingProductId ? (updatedProduct as InventoryProduct) : product,
->>>>>>> 8898339f3443ca0d5e8ddd82da3a6df67f459c2e
         ),
       );
       apiUpdateProduct(editingProductId, updatedProduct as unknown as Record<string, unknown>).catch(() => {});
@@ -801,27 +777,8 @@ export default function DashboardView() {
       lastMovement: "Producto creado con stock inicial",
     };
 
-<<<<<<< HEAD
-    setProducts((currentProducts) => {
-      const newProductId = getNextProductId(currentProducts);
-
-      return [
-        {
-          ...productForm,
-          id: newProductId,
-          minStock: getMinimumStock(productForm.stockUnit),
-          tipoPrecio: productForm.tipoPrecio,
-          stockTotal,
-          available: stockTotal,
-          lastMovement: "Producto creado con stock inicial",
-        },
-        ...currentProducts,
-      ];
-    });
-=======
     setProducts((currentProducts) => [newProduct, ...currentProducts]);
     apiCreateProduct(newProduct as unknown as Record<string, unknown>).catch(() => {});
->>>>>>> 8898339f3443ca0d5e8ddd82da3a6df67f459c2e
 
     if (shouldContinue) {
       clearProductForm(nextAvailableId);

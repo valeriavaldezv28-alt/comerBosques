@@ -758,40 +758,25 @@ export default function ClienteView() {
     const updatedProducts = products.map((product) => {
       const purchasedProduct = cartProducts.find((cartProduct) => cartProduct.id === product.id);
 
-<<<<<<< HEAD
-        const deductedStock = purchasedProduct.quantity * getUnitsPerPurchase(product, purchasedProduct.purchaseUnit);
-        const nextAvailable = Math.max(0, product.available - deductedStock);
-        const nextStockTotal = Math.max(0, product.stockTotal - deductedStock);
-
-        return {
-          ...product,
-          boxes:
-            product.stockUnit === "cajas"
-              ? Math.floor(nextStockTotal / Math.max(1, product.piecesPerBox || 1))
-              : product.boxes,
-          kilos: product.stockUnit === "kilos" ? nextStockTotal : product.kilos,
-          pieces: product.stockUnit === "piezas" ? nextStockTotal : product.pieces,
-          stockTotal: nextStockTotal,
-          available: nextAvailable,
-          lastMovement: `Compra cliente: -${purchasedProduct.quantity} ${getPurchaseUnitLabel(purchasedProduct.purchaseUnit, purchasedProduct.quantity)}`,
-        };
-      }),
-    );
-=======
       if (!purchasedProduct) {
         return product;
       }
 
-      const nextAvailable = Math.max(0, product.available - purchasedProduct.quantity);
-      const nextStockTotal = Math.max(0, product.stockTotal - purchasedProduct.quantity);
+      const deductedStock = purchasedProduct.quantity * getUnitsPerPurchase(product, purchasedProduct.purchaseUnit);
+      const nextAvailable = Math.max(0, product.available - deductedStock);
+      const nextStockTotal = Math.max(0, product.stockTotal - deductedStock);
 
       return {
         ...product,
-        boxes: product.stockUnit === "cajas" ? nextStockTotal : product.boxes,
+        boxes:
+          product.stockUnit === "cajas"
+            ? Math.floor(nextStockTotal / Math.max(1, product.piecesPerBox || 1))
+            : product.boxes,
         kilos: product.stockUnit === "kilos" ? nextStockTotal : product.kilos,
+        pieces: product.stockUnit === "piezas" ? nextStockTotal : product.pieces,
         stockTotal: nextStockTotal,
         available: nextAvailable,
-        lastMovement: `Compra cliente: -${purchasedProduct.quantity}`,
+        lastMovement: `Compra cliente: -${purchasedProduct.quantity} ${getPurchaseUnitLabel(purchasedProduct.purchaseUnit, purchasedProduct.quantity)}`,
       };
     });
 
@@ -799,7 +784,6 @@ export default function ClienteView() {
     updatedProducts
       .filter((p) => cartProducts.some((cp) => cp.id === p.id))
       .forEach((p) => apiUpdateProduct(p.id, p as unknown as Record<string, unknown>).catch(() => {}));
->>>>>>> 8898339f3443ca0d5e8ddd82da3a6df67f459c2e
     setCartItems([]);
     setCardName("");
     setCardNumber("");
