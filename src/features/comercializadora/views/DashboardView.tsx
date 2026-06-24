@@ -27,6 +27,12 @@ import {
   productsStorageKey,
   productsUpdatedEvent,
 } from "@/features/comercializadora/storage";
+import {
+  fetchProducts,
+  createProduct as apiCreateProduct,
+  updateProduct as apiUpdateProduct,
+  deleteProduct as apiDeleteProduct,
+} from "@/features/comercializadora/productsApi";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
 type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
@@ -403,6 +409,16 @@ export default function DashboardView() {
   }, []);
 
   useEffect(() => {
+    fetchProducts()
+      .then((items) => {
+        if (items.length > 0) {
+          setProducts((items as InventoryProduct[]).map(normalizeProduct));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!isProductFormOpen) {
       return;
     }
@@ -654,6 +670,7 @@ export default function DashboardView() {
     }
 
     setProducts((currentProducts) => currentProducts.filter((product) => product.id !== productId));
+    apiDeleteProduct(productId).catch(() => {});
   };
 
   const handleAddStock = (event: FormEvent<HTMLFormElement>) => {
@@ -664,8 +681,19 @@ export default function DashboardView() {
     }
 
     const movementDate = new Date().toISOString();
+    const previousStock = getStockQuantity(selectedStockProduct);
+    const nextStock = previousStock + stockQuantityNumber;
+    const updatedProduct: InventoryProduct = {
+      ...selectedStockProduct,
+      boxes: selectedStockProduct.stockUnit === "cajas" ? nextStock : selectedStockProduct.boxes,
+      kilos: selectedStockProduct.stockUnit === "kilos" ? nextStock : selectedStockProduct.kilos,
+      stockTotal: nextStock,
+      available: nextStock,
+      lastMovement: `Entrada inventario: +${stockQuantityNumber} ${selectedStockProduct.stockUnit}`,
+    };
 
     setProducts((currentProducts) =>
+<<<<<<< HEAD
       currentProducts.map((product) => {
         if (product.id !== selectedStockProduct.id) {
           return product;
@@ -684,7 +712,13 @@ export default function DashboardView() {
           lastMovement: `Entrada inventario: +${stockQuantityNumber} ${product.stockUnit}`,
         };
       }),
+=======
+      currentProducts.map((product) =>
+        product.id === selectedStockProduct.id ? updatedProduct : product,
+      ),
+>>>>>>> 8898339f3443ca0d5e8ddd82da3a6df67f459c2e
     );
+    apiUpdateProduct(selectedStockProduct.id, updatedProduct as unknown as Record<string, unknown>).catch(() => {});
 
     setInventoryMovements((currentMovements) => [
       {
@@ -714,6 +748,7 @@ export default function DashboardView() {
     const shouldContinue = submitter?.value === "continue";
 
     if (editingProductId) {
+<<<<<<< HEAD
       const stockTotal = getStockTotalFromForm(productForm);
 
       setProducts((currentProducts) =>
@@ -729,8 +764,24 @@ export default function DashboardView() {
                 available: stockTotal,
               }
             : product,
+=======
+      const stockTotal = productForm.stockUnit === "kilos" ? productForm.kilos : productForm.boxes;
+      const updatedProduct = {
+        ...(products.find((p) => p.id === editingProductId) ?? {}),
+        ...productForm,
+        id: editingProductId,
+        minStock: getMinimumStock(productForm.stockUnit),
+        stockTotal,
+        available: stockTotal,
+      };
+
+      setProducts((currentProducts) =>
+        currentProducts.map((product) =>
+          product.id === editingProductId ? (updatedProduct as InventoryProduct) : product,
+>>>>>>> 8898339f3443ca0d5e8ddd82da3a6df67f459c2e
         ),
       );
+      apiUpdateProduct(editingProductId, updatedProduct as unknown as Record<string, unknown>).catch(() => {});
       resetProductForm();
       return;
     }
@@ -741,7 +792,16 @@ export default function DashboardView() {
       { ...productForm, id: createdProductId, minStock: getMinimumStock(productForm.stockUnit), stockTotal, available: stockTotal },
       ...products,
     ]);
+    const newProduct: InventoryProduct = {
+      ...productForm,
+      id: createdProductId,
+      minStock: getMinimumStock(productForm.stockUnit),
+      stockTotal,
+      available: stockTotal,
+      lastMovement: "Producto creado con stock inicial",
+    };
 
+<<<<<<< HEAD
     setProducts((currentProducts) => {
       const newProductId = getNextProductId(currentProducts);
 
@@ -758,6 +818,10 @@ export default function DashboardView() {
         ...currentProducts,
       ];
     });
+=======
+    setProducts((currentProducts) => [newProduct, ...currentProducts]);
+    apiCreateProduct(newProduct as unknown as Record<string, unknown>).catch(() => {});
+>>>>>>> 8898339f3443ca0d5e8ddd82da3a6df67f459c2e
 
     if (shouldContinue) {
       clearProductForm(nextAvailableId);

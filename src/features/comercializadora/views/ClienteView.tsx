@@ -30,6 +30,10 @@ import {
   productsStorageKey,
   productsUpdatedEvent,
 } from "@/features/comercializadora/storage";
+import {
+  fetchProducts,
+  updateProduct as apiUpdateProduct,
+} from "@/features/comercializadora/productsApi";
 import { claseBotonPrimario, claseTarjeta, claseTarjetaSuave } from "@/shared/ui/estilosDashboard";
 
 type CatalogProduct = {
@@ -462,6 +466,16 @@ export default function ClienteView() {
   }, [location.hash]);
 
   useEffect(() => {
+    fetchProducts()
+      .then((items) => {
+        if (items.length > 0) {
+          setProducts((items as CatalogProduct[]).map(normalizeCatalogProduct));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem(customerCartStorageKey, JSON.stringify(cartItems));
     notifyCartUpdated();
   }, [cartItems]);
@@ -740,14 +754,11 @@ export default function ClienteView() {
     };
 
     setInvoices((currentInvoices) => [nextInvoice, ...currentInvoices]);
-    setProducts((currentProducts) =>
-      currentProducts.map((product) => {
-        const purchasedProduct = cartProducts.find((cartProduct) => cartProduct.id === product.id);
 
-        if (!purchasedProduct) {
-          return product;
-        }
+    const updatedProducts = products.map((product) => {
+      const purchasedProduct = cartProducts.find((cartProduct) => cartProduct.id === product.id);
 
+<<<<<<< HEAD
         const deductedStock = purchasedProduct.quantity * getUnitsPerPurchase(product, purchasedProduct.purchaseUnit);
         const nextAvailable = Math.max(0, product.available - deductedStock);
         const nextStockTotal = Math.max(0, product.stockTotal - deductedStock);
@@ -766,6 +777,29 @@ export default function ClienteView() {
         };
       }),
     );
+=======
+      if (!purchasedProduct) {
+        return product;
+      }
+
+      const nextAvailable = Math.max(0, product.available - purchasedProduct.quantity);
+      const nextStockTotal = Math.max(0, product.stockTotal - purchasedProduct.quantity);
+
+      return {
+        ...product,
+        boxes: product.stockUnit === "cajas" ? nextStockTotal : product.boxes,
+        kilos: product.stockUnit === "kilos" ? nextStockTotal : product.kilos,
+        stockTotal: nextStockTotal,
+        available: nextAvailable,
+        lastMovement: `Compra cliente: -${purchasedProduct.quantity}`,
+      };
+    });
+
+    setProducts(updatedProducts);
+    updatedProducts
+      .filter((p) => cartProducts.some((cp) => cp.id === p.id))
+      .forEach((p) => apiUpdateProduct(p.id, p as unknown as Record<string, unknown>).catch(() => {}));
+>>>>>>> 8898339f3443ca0d5e8ddd82da3a6df67f459c2e
     setCartItems([]);
     setCardName("");
     setCardNumber("");
