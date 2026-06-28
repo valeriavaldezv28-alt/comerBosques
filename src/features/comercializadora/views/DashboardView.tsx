@@ -1,28 +1,33 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
-  Activity,
   AlertTriangle,
-  ArrowUpRight,
   Boxes,
   ChevronDown,
   CheckCircle2,
   CircleDollarSign,
   ClipboardList,
   FolderUp,
-  History,
   ImagePlus,
   Layers3,
-  MoreHorizontal,
   PackageCheck,
   PackagePlus,
   Pencil,
   Plus,
   Search,
-  ShoppingCart,
   Trash2,
   X,
 } from "lucide-react";
 import {
+  defaultInventoryCatalogs,
+  getManufacturerNameForBrand,
+  getSubcategoriesByCategoryName,
+  normalizeInventoryCatalogs,
+  inventoryCategories,
+  type InventoryCatalogs,
+} from "@/features/comercializadora/catalogs";
+import { fetchCatalogs, saveCatalogs } from "@/features/comercializadora/catalogsApi";
+import {
+  catalogsStorageKey,
   inventoryMovementsStorageKey,
   productsStorageKey,
   productsUpdatedEvent,
@@ -33,6 +38,13 @@ import {
   updateProduct as apiUpdateProduct,
   deleteProduct as apiDeleteProduct,
 } from "@/features/comercializadora/productsApi";
+import {
+  normalizeBarcode,
+  normalizeProductId,
+  isValidSimpleBarcode,
+  validateProductIdentity,
+  type ProductValidationErrors,
+} from "@/features/comercializadora/productValidation";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
 type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
@@ -43,8 +55,10 @@ type InventoryProduct = {
   id: string;
   barcode: string;
   name: string;
-  category: CategoryOption;
+  category: string;
+  subcategory: string;
   brand: string;
+  manufacturer: string;
   stockUnit: StockUnit;
   boxes: number;
   kilos: number;
@@ -52,6 +66,7 @@ type InventoryProduct = {
   piecesPerBox: number;
   minStock: number;
   maxStock?: number;
+  purchasePrice: number;
   salePrice: number;
   tipoPrecio: PriceType;
   taxRate: number;
@@ -77,17 +92,13 @@ type InventoryMovement = {
 };
 
 const cleaningAndHomeCategory = "Limpieza y Hogar";
-const categoryOptions = ["Aceites", "Bebidas", "Abarrotes", cleaningAndHomeCategory] as const;
-type CategoryOption = (typeof categoryOptions)[number];
-
-const brandOptions = ["Sin marca", "Nutrioli", "Coca-Cola", "Great Value", "Fabuloso"] as const;
+const legacyCategoryMap: Record<string, string> = {
+  Aceites: "Pastas, arroz y básicos",
+  Abarrotes: "Pastas, arroz y básicos",
+  Limpieza: "Limpieza del hogar",
+  [cleaningAndHomeCategory]: "Limpieza del hogar",
+};
 const stockUnitOptions: StockUnit[] = ["cajas", "kilos", "piezas"];
-const priceTypeOptions: Array<{ value: PriceType; label: string }> = [
-  { value: "pieza", label: "Precio por pieza" },
-  { value: "caja", label: "Precio por caja" },
-  { value: "kilo", label: "Precio por kilo" },
-];
-
 const stockMinimumByUnit: Record<StockUnit, number> = {
   cajas: 5,
   kilos: 50,
@@ -98,8 +109,10 @@ const emptyProductForm: ProductForm = {
   id: "",
   barcode: "",
   name: "",
-  category: "Aceites",
-  brand: "Sin marca",
+  category: "",
+  subcategory: "",
+  brand: "",
+  manufacturer: "",
   stockUnit: "cajas",
   boxes: 0,
   kilos: 0,
@@ -107,6 +120,7 @@ const emptyProductForm: ProductForm = {
   piecesPerBox: 0,
   minStock: stockMinimumByUnit.cajas,
   maxStock: 0,
+  purchasePrice: 0,
   salePrice: 0,
   tipoPrecio: "caja",
   taxRate: 16,
@@ -114,13 +128,14 @@ const emptyProductForm: ProductForm = {
   stockTotal: 0,
 };
 
-const quickFilters = ["Categoria", "Marca", "Estatus", "Nivel de stock"];
 const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
   "7501023501128": {
     name: "Aceite vegetal 1 L",
-    category: "Aceites",
-    brand: "Nutrioli",
+    category: "Pastas, arroz y básicos",
+    subcategory: "Aceites",
+    brand: "Precissimo",
     stockUnit: "cajas",
+    purchasePrice: 32,
     salePrice: 38.9,
     minStock: stockMinimumByUnit.cajas,
     taxRate: 16,
@@ -128,17 +143,21 @@ const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
   "7501055300072": {
     name: "Refresco cola 600 ml",
     category: "Bebidas",
+    subcategory: "Refrescos",
     brand: "Coca-Cola",
     stockUnit: "cajas",
+    purchasePrice: 14,
     salePrice: 18,
     minStock: stockMinimumByUnit.cajas,
     taxRate: 16,
   },
   "7501035910017": {
     name: "Limpiador multiusos 1 L",
-    category: cleaningAndHomeCategory,
+    category: "Limpieza del hogar",
+    subcategory: "Limpiadores",
     brand: "Fabuloso",
     stockUnit: "cajas",
+    purchasePrice: 25,
     salePrice: 31,
     minStock: stockMinimumByUnit.cajas,
     taxRate: 16,
@@ -151,14 +170,6 @@ const formatCurrency = (value: number) =>
     currency: "MXN",
     maximumFractionDigits: 2,
   }).format(value);
-
-const formatMovementDate = (date: string) =>
-  new Intl.DateTimeFormat("es-MX", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(date));
 
 const getStockQuantity = (
   product: Pick<InventoryProduct, "stockUnit" | "boxes" | "kilos" | "pieces" | "piecesPerBox" | "stockTotal">,
@@ -209,6 +220,91 @@ const getPriceTypeForUnit = (stockUnit: StockUnit): PriceType => {
 };
 
 const getMinimumStock = (stockUnit: StockUnit) => stockMinimumByUnit[stockUnit];
+
+const getFieldClassName = (hasError?: boolean) =>
+  `w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 ${
+    hasError
+      ? "border-destructive text-destructive focus:border-destructive focus:ring-destructive/20"
+      : "border-input focus:border-primary focus:ring-ring/20"
+  }`;
+
+const getSelectClassName = (hasError?: boolean) => `${getFieldClassName(hasError)} appearance-none pr-3`;
+
+const formLabelClassName =
+  "space-y-1.5 text-sm font-semibold leading-none text-foreground [&>span:first-child]:block [&>span:first-child]:text-sm [&>span:first-child]:font-semibold [&>span:first-child]:leading-5 [&>span:first-child]:text-foreground";
+
+type SearchableBrandSelectProps = {
+  value: string;
+  options: string[];
+  hasError?: boolean;
+  onChange: (value: string) => void;
+};
+
+function SearchableBrandSelect({ value, options, hasError, onChange }: SearchableBrandSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return options;
+    }
+
+    return options.filter((option) => option.toLowerCase().includes(normalizedQuery));
+  }, [options, query]);
+
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  return (
+    <div className="relative">
+      <input
+        required
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-controls="brand-options"
+        value={query}
+        onFocus={() => setIsOpen(true)}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setIsOpen(true);
+          onChange("");
+        }}
+        onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+        placeholder="Buscar marca"
+        className={`h-10 ${getFieldClassName(hasError)}`}
+      />
+      {isOpen && (
+        <div
+          id="brand-options"
+          className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+        >
+          {filteredOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option);
+                setQuery(option);
+                setIsOpen(false);
+              }}
+              className={`flex w-full rounded-md px-3 py-2 text-left text-sm font-medium transition hover:bg-primary/10 hover:text-foreground ${
+                option === value ? "bg-primary/10 text-primary" : "text-foreground"
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+          {filteredOptions.length === 0 && (
+            <p className="px-3 py-2 text-sm font-medium text-muted-foreground">Sin marcas encontradas.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const getStatus = (product: InventoryProduct): InventoryStatus => {
   const stockQuantity = getStockQuantity(product);
@@ -292,17 +388,24 @@ const formatStockQuantity = (product: InventoryProduct) => {
   return `${getStockQuantity(product)} ${formatUnitLabel(product.stockUnit)}`;
 };
 
-const normalizeProductCategory = (category: string): CategoryOption => {
-  if (category === "Limpieza") {
-    return cleaningAndHomeCategory;
-  }
+const normalizeProductCategory = (category: string) => {
+  const normalizedCategory = legacyCategoryMap[category] ?? category;
+  const categoryOptions = inventoryCategories.map((catalogCategory) => catalogCategory.name);
 
-  return categoryOptions.includes(category as CategoryOption) ? (category as CategoryOption) : "Abarrotes";
+  return categoryOptions.includes(normalizedCategory) ? normalizedCategory : "Pastas, arroz y básicos";
 };
+
+const getDefaultSubcategory = (category: string) => getSubcategoriesByCategoryName(category)[0]?.name ?? "";
 
 const normalizeProduct = (product: InventoryProduct & { unit?: string; price?: number; priceType?: PriceType }): InventoryProduct => {
   const stockUnit = product.stockUnit ?? "cajas";
   const stockTotal = product.stockTotal ?? 0;
+  const category = normalizeProductCategory(product.category);
+  const brand = product.brand || "Sin marca";
+  const categorySubcategories = getSubcategoriesByCategoryName(category);
+  const subcategory = categorySubcategories.some((item) => item.name === product.subcategory)
+    ? product.subcategory
+    : getDefaultSubcategory(category);
   const boxes = product.boxes ?? (stockUnit === "cajas" ? Number(product.unit) || stockTotal : 0);
   const kilos = product.kilos ?? (stockUnit === "kilos" ? stockTotal : 0);
   const piecesPerBox = product.piecesPerBox ?? 0;
@@ -316,13 +419,19 @@ const normalizeProduct = (product: InventoryProduct & { unit?: string; price?: n
 
   return {
     ...product,
-    category: normalizeProductCategory(product.category),
+    id: normalizeProductId(product.id),
+    barcode: normalizeBarcode(product.barcode),
+    category,
+    subcategory,
+    brand,
+    manufacturer: product.manufacturer || getManufacturerNameForBrand(brand),
     stockUnit,
     boxes,
     kilos,
     pieces,
     piecesPerBox,
     minStock: getMinimumStock(stockUnit),
+    purchasePrice: product.purchasePrice ?? 0,
     salePrice: product.salePrice ?? product.price ?? 0,
     tipoPrecio: product.tipoPrecio ?? product.priceType ?? getPriceTypeForUnit(stockUnit),
     stockTotal: quantity,
@@ -353,6 +462,21 @@ const loadStoredProducts = (): InventoryProduct[] => {
   }
 };
 
+const loadStoredCatalogs = (): InventoryCatalogs => {
+  if (typeof window === "undefined") {
+    return defaultInventoryCatalogs;
+  }
+
+  try {
+    const storedCatalogs = window.localStorage.getItem(catalogsStorageKey);
+    return storedCatalogs
+      ? normalizeInventoryCatalogs(JSON.parse(storedCatalogs) as Partial<InventoryCatalogs>)
+      : defaultInventoryCatalogs;
+  } catch {
+    return defaultInventoryCatalogs;
+  }
+};
+
 const loadInventoryMovements = (): InventoryMovement[] => {
   if (typeof window === "undefined") {
     return [];
@@ -367,27 +491,52 @@ const loadInventoryMovements = (): InventoryMovement[] => {
 };
 
 export default function DashboardView() {
+  const [catalogs, setCatalogs] = useState<InventoryCatalogs>(loadStoredCatalogs);
   const [products, setProducts] = useState<InventoryProduct[]>(loadStoredProducts);
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>(loadInventoryMovements);
   const [searchTerm, setSearchTerm] = useState("");
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [isStockEntryOpen, setIsStockEntryOpen] = useState(false);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
+  const [productFormErrors, setProductFormErrors] = useState<ProductValidationErrors>({});
+  const [productFormServerError, setProductFormServerError] = useState("");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [stockSearchTerm, setStockSearchTerm] = useState("");
   const [stockQuantity, setStockQuantity] = useState("");
   const [stockSuccessMessage, setStockSuccessMessage] = useState("");
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const idInputRef = useRef<HTMLInputElement>(null);
   const stockSearchInputRef = useRef<HTMLInputElement>(null);
   const stockQuantityInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const nextProductId = useMemo(() => getNextProductId(products), [products]);
+  const categoryOptions = useMemo(() => catalogs.categories.map((category) => category.name), [catalogs.categories]);
+  const brandOptions = useMemo(() => catalogs.brands.map((brand) => brand.name), [catalogs.brands]);
+  const selectedCategorySubcategories = useMemo(
+    () => getSubcategoriesByCategoryName(productForm.category, catalogs),
+    [catalogs, productForm.category],
+  );
+  const selectedBrandManufacturer = getManufacturerNameForBrand(productForm.brand, catalogs);
+  const hasValidBarcodeLength = isValidSimpleBarcode(productForm.barcode);
+  const hasProductFormErrors = Object.keys(productFormErrors).length > 0;
+
+  useEffect(() => {
+    if (!isProductFormOpen) {
+      return;
+    }
+
+    setProductFormErrors(validateProductIdentity(productForm, products, editingProductId));
+  }, [editingProductId, isProductFormOpen, productForm, products]);
 
   useEffect(() => {
     window.localStorage.setItem(productsStorageKey, JSON.stringify(products));
   }, [products]);
+
+  useEffect(() => {
+    window.localStorage.setItem(catalogsStorageKey, JSON.stringify(catalogs));
+  }, [catalogs]);
 
   useEffect(() => {
     window.localStorage.setItem(inventoryMovementsStorageKey, JSON.stringify(inventoryMovements));
@@ -419,6 +568,14 @@ export default function DashboardView() {
   }, []);
 
   useEffect(() => {
+    fetchCatalogs()
+      .then((remoteCatalogs) => setCatalogs(normalizeInventoryCatalogs(remoteCatalogs)))
+      .catch(() => {
+        saveCatalogs(defaultInventoryCatalogs).catch(() => {});
+      });
+  }, []);
+
+  useEffect(() => {
     if (!isProductFormOpen) {
       return;
     }
@@ -427,7 +584,7 @@ export default function DashboardView() {
       ...currentForm,
       id: editingProductId ? currentForm.id : currentForm.id || nextProductId,
     }));
-    window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
+    window.setTimeout(() => nameInputRef.current?.focus(), 0);
   }, [editingProductId, isProductFormOpen, nextProductId]);
 
   const selectedStockProduct = useMemo(() => {
@@ -463,7 +620,7 @@ export default function DashboardView() {
     }
 
     return products.filter((product) =>
-      [product.id, product.barcode, product.name, product.category, product.brand]
+      [product.id, product.barcode, product.name, product.brand]
         .join(" ")
         .toLowerCase()
         .includes(normalizedSearch),
@@ -475,26 +632,33 @@ export default function DashboardView() {
   const soldOutProducts = products.filter((product) => getStatus(product) === "agotado").length;
   const inventoryValue = products.reduce((total, product) => {
     const stockForPrice = product.tipoPrecio === "caja" ? product.boxes : getSellableStock(product);
-    return total + stockForPrice * product.salePrice;
+    return total + stockForPrice * (product.purchasePrice || product.salePrice);
   }, 0);
-  const lowStockProducts = products.filter((product) => getStatus(product) !== "disponible");
   const stockQuantityNumber = Number(stockQuantity) || 0;
   const currentStockQuantity = selectedStockProduct ? getStockQuantity(selectedStockProduct) : 0;
   const newStockQuantity = currentStockQuantity + stockQuantityNumber;
 
   const updateProductForm = (field: keyof ProductForm, value: string) => {
+    setProductFormServerError("");
     setProductForm((currentForm) => ({
       ...currentForm,
-      [field]: ["boxes", "kilos", "pieces", "piecesPerBox", "minStock", "maxStock", "salePrice", "taxRate", "stockTotal"].includes(field)
+      [field]: ["boxes", "kilos", "pieces", "piecesPerBox", "minStock", "maxStock", "purchasePrice", "salePrice", "taxRate", "stockTotal"].includes(field)
         ? Number(value)
-        : value,
+        : field === "barcode"
+          ? normalizeBarcode(value)
+          : field === "id"
+            ? normalizeProductId(value)
+            : value,
+      ...(field === "brand" ? { manufacturer: getManufacturerNameForBrand(value, catalogs) } : {}),
     }));
   };
 
-  const updateProductCategory = (category: CategoryOption) => {
+  const updateProductCategory = (category: string) => {
+    setProductFormServerError("");
     setProductForm((currentForm) => ({
       ...currentForm,
       category,
+      subcategory: "",
     }));
   };
 
@@ -535,8 +699,13 @@ export default function DashboardView() {
       ...currentForm,
       name: suggestion.name ?? currentForm.name,
       category: suggestion.category ?? currentForm.category,
+      subcategory: suggestion.subcategory ?? (suggestion.category ? "" : currentForm.subcategory),
       brand: suggestion.brand ?? currentForm.brand,
+      manufacturer: suggestion.brand
+        ? getManufacturerNameForBrand(suggestion.brand, catalogs)
+        : currentForm.manufacturer,
       stockUnit: suggestion.stockUnit ?? currentForm.stockUnit,
+      purchasePrice: suggestion.purchasePrice ?? currentForm.purchasePrice,
       salePrice: suggestion.salePrice ?? currentForm.salePrice,
       tipoPrecio: suggestion.tipoPrecio ?? currentForm.tipoPrecio,
       minStock: suggestion.stockUnit ? getMinimumStock(suggestion.stockUnit) : currentForm.minStock,
@@ -552,7 +721,7 @@ export default function DashboardView() {
 
     event.preventDefault();
     suggestProductFromBarcode();
-    window.setTimeout(() => nameInputRef.current?.focus(), 0);
+    window.setTimeout(() => idInputRef.current?.focus(), 0);
   };
 
   const updateProductImage = (file: File | null) => {
@@ -576,6 +745,8 @@ export default function DashboardView() {
 
   const resetProductForm = () => {
     setProductForm(emptyProductForm);
+    setProductFormErrors({});
+    setProductFormServerError("");
     setEditingProductId(null);
     setIsProductFormOpen(false);
   };
@@ -584,21 +755,25 @@ export default function DashboardView() {
     setProductForm({
       ...emptyProductForm,
       id: nextId,
-      category: productForm.category,
       brand: productForm.brand,
+      manufacturer: productForm.manufacturer,
       stockUnit: productForm.stockUnit,
       boxes: 0,
       kilos: 0,
       pieces: 0,
       piecesPerBox: productForm.stockUnit === "cajas" ? productForm.piecesPerBox : 0,
       minStock: getMinimumStock(productForm.stockUnit),
+      purchasePrice: 0,
+      salePrice: 0,
       tipoPrecio: getPriceTypeForUnit(productForm.stockUnit),
     });
-    window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
+    window.setTimeout(() => nameInputRef.current?.focus(), 0);
   };
 
   const openNewProductForm = () => {
     setEditingProductId(null);
+    setProductFormErrors({});
+    setProductFormServerError("");
     setProductForm({
       ...emptyProductForm,
       id: nextProductId,
@@ -645,7 +820,9 @@ export default function DashboardView() {
       barcode: product.barcode,
       name: product.name,
       category: product.category,
+      subcategory: product.subcategory,
       brand: product.brand,
+      manufacturer: product.manufacturer,
       stockUnit: product.stockUnit,
       boxes: product.boxes,
       kilos: product.kilos,
@@ -653,6 +830,7 @@ export default function DashboardView() {
       piecesPerBox: product.piecesPerBox,
       minStock: getMinimumStock(product.stockUnit),
       maxStock: product.maxStock ?? 0,
+      purchasePrice: product.purchasePrice,
       salePrice: product.salePrice,
       tipoPrecio: product.tipoPrecio,
       taxRate: product.taxRate,
@@ -735,18 +913,46 @@ export default function DashboardView() {
     resetStockEntryForm();
   };
 
-  const handleCreateProduct = (event: FormEvent<HTMLFormElement>) => {
+  const persistProduct = async (product: InventoryProduct, previousProductId?: string) => {
+    if (previousProductId) {
+      await apiUpdateProduct(previousProductId, product as unknown as Record<string, unknown>);
+      return;
+    }
+
+    await apiCreateProduct(product as unknown as Record<string, unknown>);
+  };
+
+  const getApiErrorMessage = (error: unknown) =>
+    error instanceof Error && error.message
+      ? error.message
+      : "No se pudo guardar el producto. Intenta nuevamente.";
+
+  const isLocalOnlyPersistenceError = (error: unknown) =>
+    error instanceof TypeError || (error instanceof Error && error.message === "Error 404");
+
+  const handleCreateProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const shouldContinue = submitter?.value === "continue";
+    const validationErrors = validateProductIdentity(productForm, products, editingProductId);
+
+    setProductFormErrors(validationErrors);
+    setProductFormServerError("");
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
 
     if (editingProductId) {
       const stockTotal = getStockTotalFromForm(productForm);
+      const previousProduct = products.find((p) => p.id === editingProductId);
       const updatedProduct = {
-        ...(products.find((p) => p.id === editingProductId) ?? {}),
+        ...(previousProduct ?? {}),
         ...productForm,
-        id: editingProductId,
+        id: normalizeProductId(productForm.id),
+        barcode: normalizeBarcode(productForm.barcode),
+        manufacturer: productForm.manufacturer || getManufacturerNameForBrand(productForm.brand, catalogs),
         minStock: getMinimumStock(productForm.stockUnit),
         stockTotal,
         available: stockTotal,
@@ -757,12 +963,27 @@ export default function DashboardView() {
           product.id === editingProductId ? (updatedProduct as InventoryProduct) : product,
         ),
       );
-      apiUpdateProduct(editingProductId, updatedProduct as unknown as Record<string, unknown>).catch(() => {});
+      try {
+        await persistProduct(updatedProduct as InventoryProduct, editingProductId);
+      } catch (error) {
+        if (isLocalOnlyPersistenceError(error)) {
+          resetProductForm();
+          return;
+        }
+
+        if (previousProduct) {
+          setProducts((currentProducts) =>
+            currentProducts.map((product) => (product.id === updatedProduct.id ? previousProduct : product)),
+          );
+        }
+        setProductFormServerError(getApiErrorMessage(error));
+        return;
+      }
       resetProductForm();
       return;
     }
 
-    const createdProductId = getNextProductId(products);
+    const createdProductId = normalizeProductId(productForm.id || getNextProductId(products));
     const stockTotal = getStockTotalFromForm(productForm);
     const nextAvailableId = getNextProductId([
       { ...productForm, id: createdProductId, minStock: getMinimumStock(productForm.stockUnit), stockTotal, available: stockTotal },
@@ -771,6 +992,8 @@ export default function DashboardView() {
     const newProduct: InventoryProduct = {
       ...productForm,
       id: createdProductId,
+      barcode: normalizeBarcode(productForm.barcode),
+      manufacturer: productForm.manufacturer || getManufacturerNameForBrand(productForm.brand, catalogs),
       minStock: getMinimumStock(productForm.stockUnit),
       stockTotal,
       available: stockTotal,
@@ -778,7 +1001,23 @@ export default function DashboardView() {
     };
 
     setProducts((currentProducts) => [newProduct, ...currentProducts]);
-    apiCreateProduct(newProduct as unknown as Record<string, unknown>).catch(() => {});
+    try {
+      await persistProduct(newProduct);
+    } catch (error) {
+      if (isLocalOnlyPersistenceError(error)) {
+        if (shouldContinue) {
+          clearProductForm(nextAvailableId);
+          return;
+        }
+
+        resetProductForm();
+        return;
+      }
+
+      setProducts((currentProducts) => currentProducts.filter((product) => product.id !== newProduct.id));
+      setProductFormServerError(getApiErrorMessage(error));
+      return;
+    }
 
     if (shouldContinue) {
       clearProductForm(nextAvailableId);
@@ -873,17 +1112,6 @@ export default function DashboardView() {
             </div>
           </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {quickFilters.map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                className="shrink-0 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -909,102 +1137,6 @@ export default function DashboardView() {
             </article>
           );
         })}
-      </section>
-
-      <section className="grid gap-3 xl:grid-cols-[1.1fr_1fr_1fr]">
-        <article className={claseTarjeta("p-4")}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700 ring-1 ring-amber-300/60 dark:bg-amber-400/15 dark:text-amber-200">
-                <AlertTriangle className="h-4 w-4" />
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Alertas de stock</h3>
-                <p className="text-xs font-medium text-muted-foreground">{lowStockProducts.length} productos requieren accion</p>
-              </div>
-            </div>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="mt-3 space-y-2">
-            {lowStockProducts.slice(0, 3).map((product) => (
-              <div key={product.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
-                  <p className="text-xs font-medium text-muted-foreground">{getStockAlert(product, getStatus(product))}</p>
-                </div>
-                <span className="shrink-0 text-sm font-bold text-foreground">{formatStockQuantity(product)}</span>
-              </div>
-            ))}
-            {lowStockProducts.length === 0 && (
-              <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
-                Sin alertas criticas por ahora.
-              </p>
-            )}
-          </div>
-        </article>
-
-        <article className={claseTarjeta("p-4")}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
-                <History className="h-4 w-4" />
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Movimientos recientes</h3>
-                <p className="text-xs font-medium text-muted-foreground">Ultimas entradas al inventario</p>
-              </div>
-            </div>
-            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="mt-3 space-y-2">
-            {inventoryMovements.length > 0 ? (
-              inventoryMovements.slice(0, 4).map((movement) => (
-                <div key={movement.id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="truncate font-semibold text-foreground">{movement.productName}</span>
-                  <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                    +{movement.quantity} {formatUnitLabel(movement.stockUnit)}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
-                Aun no hay movimientos.
-              </p>
-            )}
-          </div>
-        </article>
-
-        <article className={claseTarjeta("p-4")}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-info/10 text-info ring-1 ring-info/15">
-                <Activity className="h-4 w-4" />
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Actividad operativa</h3>
-                <p className="text-xs font-medium text-muted-foreground">Entradas, ventas y ajustes</p>
-              </div>
-            </div>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            {[
-              { label: "Entradas", value: String(inventoryMovements.length), icon: PackagePlus },
-              { label: "Ventas", value: "0", icon: ShoppingCart },
-              { label: "Ajustes", value: "0", icon: ClipboardList },
-            ].map((item) => {
-              const Icon = item.icon;
-
-              return (
-                <div key={item.label} className="rounded-lg border border-border/70 bg-muted/25 px-2 py-2">
-                  <Icon className="mx-auto h-4 w-4 text-muted-foreground" />
-                  <p className="mt-1 text-lg font-bold text-foreground">{item.value}</p>
-                  <p className="text-[11px] font-semibold text-muted-foreground">{item.label}</p>
-                </div>
-              );
-            })}
-          </div>
-        </article>
       </section>
 
       <section className={claseTarjeta("overflow-hidden")}>
@@ -1082,7 +1214,7 @@ export default function DashboardView() {
                           <div className="min-w-0">
                             <p className="truncate text-sm font-bold text-foreground">{product.name}</p>
                             <p className="truncate text-xs font-medium text-muted-foreground">
-                              {product.brand || "Sin marca"} · {product.id}
+                              {product.id} · {product.barcode || "Sin código"}
                             </p>
                           </div>
                         </div>
@@ -1109,8 +1241,8 @@ export default function DashboardView() {
                             <ChevronDown className="h-3.5 w-3.5 transition group-open/details:rotate-180" />
                           </summary>
                           <div className="mt-2 grid min-w-56 gap-1 rounded-lg border border-border bg-background p-3 text-xs font-medium text-muted-foreground shadow-lg">
-                            <span>Categoria: {product.category}</span>
                             <span>Codigo: {product.barcode}</span>
+                            <span>ID: {product.id}</span>
                             <span>
                               Precio: {formatCurrency(product.salePrice)} por {formatPriceType(product.tipoPrecio)}
                             </span>
@@ -1154,53 +1286,6 @@ export default function DashboardView() {
         )}
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr]">
-        <article className={claseTarjeta("p-4")}>
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground">Ventas del dia</h3>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <p className="mt-3 text-2xl font-bold text-foreground">$0.00</p>
-          <p className="mt-1 text-xs font-medium text-muted-foreground">Se alimenta desde ventas registradas.</p>
-        </article>
-
-        <article className={claseTarjeta("p-4")}>
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground">Ultimas entradas</h3>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="mt-3 space-y-2">
-            {inventoryMovements.length > 0 ? (
-              inventoryMovements.slice(0, 3).map((movement) => (
-                <div key={movement.id} className="rounded-lg border border-border/70 bg-muted/25 px-3 py-2">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="truncate font-semibold text-foreground">{movement.productName}</span>
-                    <span className="shrink-0 font-bold text-success">+{movement.quantity}</span>
-                  </div>
-                  <p className="mt-1 text-xs font-medium text-muted-foreground">
-                    {movement.previousStock} a {movement.newStock} {movement.stockUnit} · {formatMovementDate(movement.createdAt)}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
-                Sin entradas registradas.
-              </div>
-            )}
-          </div>
-        </article>
-
-        <article className={claseTarjeta("p-4")}>
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground">Reportes secundarios</h3>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground">
-            Ventas por categoria y rotacion apareceran aqui.
-          </div>
-        </article>
-      </section>
-
       {isStockEntryOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/55 p-3 sm:p-6">
           <form
@@ -1232,7 +1317,7 @@ export default function DashboardView() {
                 </div>
               )}
 
-              <label className="space-y-1.5 text-sm font-medium text-foreground">
+              <label className={formLabelClassName}>
                 <span>Buscar producto</span>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1284,7 +1369,6 @@ export default function DashboardView() {
                         { label: "Nombre", value: selectedStockProduct.name },
                         { label: "Codigo/SKU", value: selectedStockProduct.barcode || selectedStockProduct.id },
                         { label: "ID", value: selectedStockProduct.id },
-                        { label: "Categoria", value: selectedStockProduct.category },
                         { label: "Precio", value: formatCurrency(selectedStockProduct.salePrice) },
                         { label: "Stock actual", value: formatStockQuantity(selectedStockProduct) },
                       ].map((item) => (
@@ -1297,7 +1381,7 @@ export default function DashboardView() {
                       ))}
                     </div>
 
-                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <label className={formLabelClassName}>
                       <span>Cantidad a ingresar</span>
                       <input
                         ref={stockQuantityInputRef}
@@ -1370,7 +1454,7 @@ export default function DashboardView() {
                   {editingProductId ? "Editar producto" : "Nuevo producto"}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {editingProductId ? "Actualiza la informacion del producto." : "Captura el stock inicial."}
+                  {editingProductId ? "Actualiza la información del producto." : "Captura el stock inicial."}
                 </p>
               </div>
               <button
@@ -1386,88 +1470,187 @@ export default function DashboardView() {
             <div className="flex-1 overflow-y-auto p-5">
               <section className="rounded-lg border border-border bg-muted/20 p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-foreground">Informacion General</h4>
+                  <h4 className="text-sm font-semibold text-foreground">Información general</h4>
                   <span className="text-xs font-medium text-muted-foreground">
-                    ID: <span className="font-mono text-foreground">{productForm.id || nextProductId}</span>
+                    Sugerido: <span className="font-mono text-foreground">{nextProductId}</span>
                   </span>
                 </div>
                 <div className="grid gap-4">
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Codigo de barras</span>
-                    <input
-                      ref={barcodeInputRef}
-                      required
-                      value={productForm.barcode}
-                      onChange={(event) => updateProductForm("barcode", event.target.value)}
-                      onKeyDown={handleBarcodeKeyDown}
-                      placeholder="Escribe codigo de barras"
-                      className="h-11 w-full rounded-lg border border-input bg-background px-3 font-mono text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    />
-                  </label>
-
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Nombre producto</span>
+                  <label className={formLabelClassName}>
+                    <span>Nombre del producto *</span>
                     <input
                       ref={nameInputRef}
                       required
                       value={productForm.name}
                       onChange={(event) => updateProductForm("name", event.target.value)}
                       placeholder="Nombre sugerido o captura manual"
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      className={`h-10 ${getFieldClassName(Boolean(productFormErrors.name))}`}
                     />
+                    {productFormErrors.name && (
+                      <p className="text-xs font-semibold text-destructive">{productFormErrors.name}</p>
+                    )}
+                  </label>
+
+                  <label className={formLabelClassName}>
+                    <span>Código de barras *</span>
+                    <input
+                      ref={barcodeInputRef}
+                      required
+                      value={productForm.barcode}
+                      onChange={(event) => updateProductForm("barcode", event.target.value)}
+                      onKeyDown={handleBarcodeKeyDown}
+                      placeholder="Escribe código de barras"
+                      className={`h-11 font-mono ${getFieldClassName(Boolean(productFormErrors.barcode))}`}
+                    />
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {productFormErrors.barcode ? (
+                        <p className="font-semibold text-destructive">{productFormErrors.barcode}</p>
+                      ) : productForm.barcode && hasValidBarcodeLength ? (
+                        <p className="font-semibold text-success">Código de barras válido.</p>
+                      ) : (
+                        <p className="font-medium text-muted-foreground">Solo números, de 8 a 20 dígitos.</p>
+                      )}
+                    </div>
+                  </label>
+
+                  <label className={formLabelClassName}>
+                    <span>ID del producto *</span>
+                    <input
+                      ref={idInputRef}
+                      required
+                      value={productForm.id}
+                      onChange={(event) => updateProductForm("id", event.target.value)}
+                      placeholder="PROD-000001"
+                      className={`h-10 font-mono ${getFieldClassName(Boolean(productFormErrors.id))}`}
+                    />
+                    {productFormErrors.id ? (
+                      <p className="text-xs font-semibold text-destructive">{productFormErrors.id}</p>
+                    ) : (
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Sugerido: {nextProductId}
+                      </p>
+                    )}
                   </label>
 
                   <div className="grid gap-4 md:grid-cols-2">
-                    <label className="space-y-1.5 text-sm font-medium text-foreground">
-                      <span>Categoria</span>
+                    <label className={formLabelClassName}>
+                      <span>Categoría *</span>
                       <select
                         required
                         value={productForm.category}
-                        onChange={(event) => updateProductCategory(event.target.value as CategoryOption)}
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                        onChange={(event) => updateProductCategory(event.target.value)}
+                        className={`h-10 ${getSelectClassName(Boolean(productFormErrors.category))}`}
                       >
+                        <option value="">Selecciona una categoría</option>
                         {categoryOptions.map((category) => (
                           <option key={category} value={category}>
-                            {category}
+                            {catalogs.categories.find((item) => item.name === category)?.icon} {category}
                           </option>
                         ))}
                       </select>
+                      {productFormErrors.category && (
+                        <p className="text-xs font-semibold leading-5 text-destructive">{productFormErrors.category}</p>
+                      )}
                     </label>
 
-                    <label className="space-y-1.5 text-sm font-medium text-foreground">
-                      <span>Marca</span>
+                    <label className={formLabelClassName}>
+                      <span>Subcategoría *</span>
                       <select
                         required
-                        value={productForm.brand}
-                        onChange={(event) => updateProductForm("brand", event.target.value)}
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                        disabled={!productForm.category}
+                        value={productForm.subcategory}
+                        onChange={(event) => updateProductForm("subcategory", event.target.value)}
+                        className={`h-10 disabled:cursor-not-allowed disabled:opacity-60 ${getSelectClassName(Boolean(productFormErrors.subcategory))}`}
                       >
-                        {brandOptions.map((brand) => (
-                          <option key={brand} value={brand}>
-                            {brand}
+                        <option value="">
+                          {productForm.category ? "Selecciona una subcategoría" : "Selecciona categoría primero"}
+                        </option>
+                        {selectedCategorySubcategories.map((subcategory) => (
+                          <option key={subcategory.id} value={subcategory.name}>
+                            {subcategory.name}
                           </option>
                         ))}
                       </select>
+                      {productFormErrors.subcategory && (
+                        <p className="text-xs font-semibold leading-5 text-destructive">{productFormErrors.subcategory}</p>
+                      )}
+                    </label>
+
+                    <label className={formLabelClassName}>
+                      <span>Marca *</span>
+                      <SearchableBrandSelect
+                        value={productForm.brand}
+                        options={brandOptions}
+                        hasError={Boolean(productFormErrors.brand)}
+                        onChange={(brand) => updateProductForm("brand", brand)}
+                      />
+                      {selectedBrandManufacturer && (
+                        <p className="text-xs font-medium leading-5 text-muted-foreground">
+                          Corporativo asociado: {selectedBrandManufacturer}
+                        </p>
+                      )}
+                      {productFormErrors.brand && (
+                        <p className="text-xs font-semibold leading-5 text-destructive">{productFormErrors.brand}</p>
+                      )}
                     </label>
                   </div>
+
+                  {productFormServerError && (
+                    <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">
+                      {productFormServerError}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
+                <h4 className="mb-3 text-sm font-semibold text-foreground">Precios</h4>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className={formLabelClassName}>
+                    <span>Precio de compra</span>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={productForm.purchasePrice || ""}
+                      onChange={(event) => updateProductForm("purchasePrice", event.target.value)}
+                      placeholder="$0.00"
+                      className={`h-10 ${getFieldClassName()}`}
+                    />
+                  </label>
+
+                  <label className={formLabelClassName}>
+                    <span>Precio de venta</span>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={productForm.salePrice || ""}
+                      onChange={(event) => updateProductForm("salePrice", event.target.value)}
+                      placeholder="$0.00"
+                      className={`h-10 ${getFieldClassName()}`}
+                    />
+                  </label>
                 </div>
               </section>
 
               <section className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-foreground">Inventario</h4>
+                  <h4 className="text-sm font-semibold text-foreground">Stock</h4>
                   <span className="text-xs font-medium text-muted-foreground">
-                    Minimo: {getMinimumStock(productForm.stockUnit)} {formatUnitLabel(productForm.stockUnit)}
+                    Mínimo: {getMinimumStock(productForm.stockUnit)} {formatUnitLabel(productForm.stockUnit)}
                   </span>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
+                  <label className={formLabelClassName}>
                     <span>Unidad</span>
                     <select
                       required
                       value={productForm.stockUnit}
                       onChange={(event) => updateStockUnit(event.target.value as StockUnit)}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                      className={`h-10 ${getSelectClassName()}`}
                     >
                       {stockUnitOptions.map((stockUnit) => (
                         <option key={stockUnit} value={stockUnit}>
@@ -1479,7 +1662,7 @@ export default function DashboardView() {
 
                   {productForm.stockUnit === "cajas" && (
                     <>
-                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <label className={formLabelClassName}>
                       <span>Cantidad de cajas</span>
                       <input
                         required
@@ -1489,11 +1672,11 @@ export default function DashboardView() {
                         value={productForm.boxes || ""}
                         onChange={(event) => updateProductForm("boxes", event.target.value)}
                         placeholder="0"
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                        className={`h-10 ${getFieldClassName()}`}
                       />
                     </label>
 
-                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <label className={formLabelClassName}>
                       <span>Piezas por caja</span>
                       <input
                         required
@@ -1503,14 +1686,14 @@ export default function DashboardView() {
                         value={productForm.piecesPerBox || ""}
                         onChange={(event) => updateProductForm("piecesPerBox", event.target.value)}
                         placeholder="0"
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                        className={`h-10 ${getFieldClassName()}`}
                       />
                     </label>
                     </>
                   )}
 
                   {productForm.stockUnit === "kilos" && (
-                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <label className={formLabelClassName}>
                       <span>Cantidad en kilos</span>
                       <input
                         required
@@ -1520,13 +1703,13 @@ export default function DashboardView() {
                         value={productForm.kilos || ""}
                         onChange={(event) => updateProductForm("kilos", event.target.value)}
                         placeholder="0"
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                        className={`h-10 ${getFieldClassName()}`}
                       />
                     </label>
                   )}
 
                   {productForm.stockUnit === "piezas" && (
-                    <label className="space-y-1.5 text-sm font-medium text-foreground">
+                    <label className={formLabelClassName}>
                       <span>Piezas disponibles</span>
                       <input
                         required
@@ -1536,45 +1719,10 @@ export default function DashboardView() {
                         value={productForm.pieces || ""}
                         onChange={(event) => updateProductForm("pieces", event.target.value)}
                         placeholder="0"
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                        className={`h-10 ${getFieldClassName()}`}
                       />
                     </label>
                   )}
-                </div>
-              </section>
-
-              <section className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
-                <h4 className="mb-3 text-sm font-semibold text-foreground">Precio</h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Precio</span>
-                    <input
-                      required
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={productForm.salePrice || ""}
-                      onChange={(event) => updateProductForm("salePrice", event.target.value)}
-                      placeholder="$0.00"
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    />
-                  </label>
-
-                  <label className="space-y-1.5 text-sm font-medium text-foreground">
-                    <span>Tipo de precio</span>
-                    <select
-                      required
-                      value={productForm.tipoPrecio}
-                      onChange={(event) => updateProductForm("tipoPrecio", event.target.value)}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
-                    >
-                      {priceTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </div>
               </section>
 
@@ -1618,7 +1766,8 @@ export default function DashboardView() {
                   type="submit"
                   name="productAction"
                   value="continue"
-                  className="inline-flex h-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                  disabled={hasProductFormErrors}
+                  className="inline-flex h-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:pointer-events-none disabled:opacity-50"
                 >
                   Guardar y continuar
                 </button>
@@ -1627,7 +1776,8 @@ export default function DashboardView() {
                 type="submit"
                 name="productAction"
                 value="save"
-                className={claseBotonPrimario("h-10 px-4 text-sm")}
+                disabled={hasProductFormErrors}
+                className={claseBotonPrimario("h-10 px-4 text-sm disabled:pointer-events-none disabled:opacity-50")}
               >
                 Guardar
               </button>
