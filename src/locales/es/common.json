@@ -79,6 +79,43 @@
     },
     "logout": "Salir"
   },
+  "customerRegistration": {
+    "header": {
+      "eyebrow": "Registro publico",
+      "title": "Alta de cliente WhatsApp"
+    },
+    "intro": {
+      "title": "Registrate una vez y pide por WhatsApp con tu direccion guardada",
+      "description": "Capturamos tu telefono y direccion principal para que el backend pueda validar tus pedidos entrantes y reutilizar tus datos de entrega."
+    },
+    "flow": {
+      "title": "Registro primero, luego pedido",
+      "description": "Cuando llegue un pedido por WhatsApp, se valida el telefono en formato E.164 y se usa la direccion registrada para preparar la entrega."
+    },
+    "form": {
+      "title": "Datos de cliente",
+      "requiredNote": "Los campos marcados con * son obligatorios.",
+      "addressTitle": "Direccion principal",
+      "fields": {
+        "fullName": "Nombre completo",
+        "phone": "Telefono WhatsApp E.164",
+        "merchantKey": "Merchant key o comercio",
+        "street": "Calle",
+        "number": "Numero exterior/interior",
+        "neighborhood": "Colonia",
+        "city": "Ciudad",
+        "state": "Estado",
+        "postalCode": "Codigo postal",
+        "country": "Pais",
+        "references": "Referencias opcionales",
+        "termsAccepted": "Acepto el uso de mis datos para validar pedidos por WhatsApp y coordinar entregas."
+      },
+      "actions": {
+        "submit": "Crear registro",
+        "submitting": "Enviando..."
+      }
+    }
+  },
   "notFound": {
     "title": "404",
     "description": "Pagina no encontrada",

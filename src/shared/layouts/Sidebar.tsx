@@ -48,6 +48,12 @@ const adminMenuItems = [
     path: ROUTE_PATHS.dashboard,
   },
   {
+    key: "customers",
+    icon: UsersRound,
+    label: "Clientes",
+    path: ROUTE_PATHS.dashboardCustomers,
+  },
+  {
     key: "reports",
     icon: BarChart3,
     label: "Reportes",
@@ -145,7 +151,9 @@ export const BarraLateral = ({
           const [itemPath, itemHash = ""] = item.path.split("#");
           const active = isCustomerProfile
             ? location.pathname === itemPath && location.hash === (itemHash ? `#${itemHash}` : "")
-            : location.pathname === itemPath && item.key === "inventory";
+            : item.path === ROUTE_PATHS.dashboard
+              ? location.pathname === itemPath && item.key === "inventory"
+              : location.pathname === itemPath;
           const Icon = item.icon;
 
           return (

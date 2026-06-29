@@ -79,6 +79,43 @@
     },
     "logout": "Exit"
   },
+  "customerRegistration": {
+    "header": {
+      "eyebrow": "Public registration",
+      "title": "WhatsApp customer signup"
+    },
+    "intro": {
+      "title": "Register once and order by WhatsApp with your saved address",
+      "description": "We capture your phone number and primary address so the backend can validate incoming orders and reuse your delivery details."
+    },
+    "flow": {
+      "title": "Register first, order later",
+      "description": "When an order arrives through WhatsApp, the backend validates the E.164 phone number and uses the registered address to prepare delivery."
+    },
+    "form": {
+      "title": "Customer details",
+      "requiredNote": "Fields marked with * are required.",
+      "addressTitle": "Primary address",
+      "fields": {
+        "fullName": "Full name",
+        "phone": "WhatsApp phone E.164",
+        "merchantKey": "Merchant key or business",
+        "street": "Street",
+        "number": "Exterior/interior number",
+        "neighborhood": "Neighborhood",
+        "city": "City",
+        "state": "State",
+        "postalCode": "Postal code",
+        "country": "Country",
+        "references": "Optional references",
+        "termsAccepted": "I accept the use of my data to validate WhatsApp orders and coordinate deliveries."
+      },
+      "actions": {
+        "submit": "Create registration",
+        "submitting": "Sending..."
+      }
+    }
+  },
   "notFound": {
     "title": "404",
     "description": "Page not found",
