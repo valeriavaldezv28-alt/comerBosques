@@ -236,7 +236,7 @@ export default function CustomersAdminView() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 Administracion
               </p>
-              <h1 className="text-2xl font-semibold text-foreground">Clientes</h1>
+              <h1 className="text-2xl font-semibold text-foreground">Merchan</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Consulta y administra clientes registrados desde WhatsApp y el registro publico.
               </p>
