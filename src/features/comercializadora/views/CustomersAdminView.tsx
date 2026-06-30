@@ -225,19 +225,19 @@ export default function CustomersAdminView() {
   };
 
   return (
-    <div className="space-y-5">
-      <section className={claseTarjeta("overflow-hidden")}>
-        <div className="flex flex-col gap-4 border-b border-border/70 p-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <UsersRound className="h-5 w-5" aria-hidden="true" />
+    <div className="space-y-4">
+      <section className={claseTarjeta()}>
+        <div className="flex flex-col gap-4 border-b border-slate-200 p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white shadow-sm">
+              <UsersRound className="h-6 w-6" aria-hidden="true" />
             </span>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Administracion
               </p>
-              <h1 className="text-2xl font-semibold text-foreground">Merchan</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <h1 className="text-2xl font-bold leading-tight text-slate-950">Merchan</h1>
+              <p className="mt-1 text-sm font-medium text-slate-500">
                 Consulta y administra clientes registrados desde WhatsApp y el registro publico.
               </p>
             </div>
@@ -252,22 +252,22 @@ export default function CustomersAdminView() {
           </button>
         </div>
 
-        <div className="grid gap-3 border-b border-border/70 p-4 lg:grid-cols-[1fr_220px_180px]">
+        <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_220px_180px]">
           <label className="relative">
             <span className="sr-only">Buscar por nombre, telefono o ciudad</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Buscar por nombre, telefono o ciudad"
-              className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+              className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
 
           <select
             value={merchantFilter}
             onChange={(event) => setMerchantFilter(event.target.value)}
-            className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+            className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option value="all">Todos los merchants</option>
             {merchants.map((merchant) => (
@@ -280,7 +280,7 @@ export default function CustomersAdminView() {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+            className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option value="all">Todos los estados</option>
             {statuses.map((status) => (

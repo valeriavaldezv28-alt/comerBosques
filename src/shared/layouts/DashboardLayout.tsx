@@ -26,7 +26,7 @@ export const DashboardLayout = ({ children }: { children?: ReactNode }) => {
   const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
-    <div className={`flex min-h-screen w-full ${isProductNewView ? "bg-[#f6f8fb]" : "bg-background"}`}>
+    <div className="flex min-h-screen w-full bg-[#f6f8fb]">
       <BarraLateral mode="desktop" />
       <BarraLateral mode="mobile" isOpen={isSidebarOpen} onClose={closeSidebar} onNavigate={closeSidebar} />
 

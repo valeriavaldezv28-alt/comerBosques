@@ -243,16 +243,16 @@ const getPriceTypeForUnit = (stockUnit: StockUnit): PriceType => {
 const getMinimumStock = (stockUnit: StockUnit) => stockMinimumByUnit[stockUnit];
 
 const getFieldClassName = (hasError?: boolean) =>
-  `w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 ${
+  `w-full rounded-md border bg-white px-3 text-sm text-slate-900 outline-none transition focus:ring-2 ${
     hasError
-      ? "border-destructive text-destructive focus:border-destructive focus:ring-destructive/20"
-      : "border-input focus:border-primary focus:ring-ring/20"
+      ? "border-rose-400 text-rose-700 focus:border-rose-400 focus:ring-rose-100"
+      : "border-slate-200 focus:border-blue-500 focus:ring-blue-100"
   }`;
 
 const getSelectClassName = (hasError?: boolean) => `${getFieldClassName(hasError)} appearance-none pr-3`;
 
 const formLabelClassName =
-  "space-y-1.5 text-sm font-semibold leading-none text-foreground [&>span:first-child]:block [&>span:first-child]:text-sm [&>span:first-child]:font-semibold [&>span:first-child]:leading-5 [&>span:first-child]:text-foreground";
+  "space-y-1.5 text-sm font-semibold leading-none text-slate-800 [&>span:first-child]:block [&>span:first-child]:text-sm [&>span:first-child]:font-semibold [&>span:first-child]:leading-5 [&>span:first-child]:text-slate-800";
 
 type SearchableBrandSelectProps = {
   value: string;
@@ -299,7 +299,7 @@ function SearchableBrandSelect({ value, options, hasError, onChange }: Searchabl
       {isOpen && (
         <div
           id="brand-options"
-          className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+          className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-xl"
         >
           {filteredOptions.map((option) => (
             <button
@@ -311,15 +311,15 @@ function SearchableBrandSelect({ value, options, hasError, onChange }: Searchabl
                 setQuery(option);
                 setIsOpen(false);
               }}
-              className={`flex w-full rounded-md px-3 py-2 text-left text-sm font-medium transition hover:bg-primary/10 hover:text-foreground ${
-                option === value ? "bg-primary/10 text-primary" : "text-foreground"
+              className={`flex w-full rounded-md px-3 py-2 text-left text-sm font-medium transition hover:bg-blue-50 hover:text-slate-900 ${
+                option === value ? "bg-blue-50 text-blue-600" : "text-slate-700"
               }`}
             >
               {option}
             </button>
           ))}
           {filteredOptions.length === 0 && (
-            <p className="px-3 py-2 text-sm font-medium text-muted-foreground">Sin marcas encontradas.</p>
+            <p className="px-3 py-2 text-sm font-medium text-slate-500">Sin marcas encontradas.</p>
           )}
         </div>
       )}
@@ -1084,7 +1084,7 @@ export default function DashboardView() {
       value: String(products.length),
       detail: `${productFamilyCount} productos base`,
       icon: Layers3,
-      tone: "text-primary bg-primary/10 ring-primary/15",
+      tone: "text-blue-600 bg-blue-50 ring-blue-200/60",
       valueClassName: "text-3xl",
     },
     {
@@ -1092,7 +1092,7 @@ export default function DashboardView() {
       value: String(availableProducts),
       detail: "Listos para venta",
       icon: PackageCheck,
-      tone: "text-success bg-success/10 ring-success/20",
+      tone: "text-emerald-700 bg-emerald-50 ring-emerald-200/60",
       valueClassName: "text-3xl",
     },
     {
@@ -1100,7 +1100,7 @@ export default function DashboardView() {
       value: String(lowAvailabilityProducts),
       detail: "Requieren revision",
       icon: AlertTriangle,
-      tone: "text-amber-700 bg-amber-100 ring-amber-300/60 dark:text-amber-200 dark:bg-amber-400/15",
+      tone: "text-amber-700 bg-amber-100 ring-amber-300/60",
       valueClassName: "text-3xl",
     },
     {
@@ -1108,7 +1108,7 @@ export default function DashboardView() {
       value: String(soldOutProducts),
       detail: "Sin existencia",
       icon: ClipboardList,
-      tone: "text-destructive bg-destructive/10 ring-destructive/20",
+      tone: "text-rose-600 bg-rose-50 ring-rose-200/60",
       valueClassName: "text-3xl",
     },
     {
@@ -1116,38 +1116,42 @@ export default function DashboardView() {
       value: formatCurrency(inventoryValue),
       detail: "Costo estimado",
       icon: CircleDollarSign,
-      tone: "text-info bg-info/10 ring-info/20",
+      tone: "text-sky-600 bg-sky-50 ring-sky-200/60",
       valueClassName: "text-2xl leading-tight",
     },
   ];
 
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4">
-      <section className={claseTarjeta("overflow-hidden")}>
-        <div className="border-b border-border/70 bg-card/95 p-4 sm:p-5">
+      <section className={claseTarjeta()}>
+        <div className="border-b border-slate-200 p-4 sm:p-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">Centro operativo</p>
-              <h3 className="mt-1 text-xl font-bold text-foreground">Inventario principal</h3>
-              <p className="mt-1 text-sm font-medium text-muted-foreground">
-                Lectura rapida de stock, alertas y movimientos del almacen.
-              </p>
+            <div className="flex items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white shadow-sm">
+                <Boxes className="h-6 w-6" />
+              </span>
+              <div>
+                <h3 className="text-2xl font-bold leading-tight text-slate-950">Inventario principal</h3>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Lectura rapida de stock, alertas y movimientos del almacen.
+                </p>
+              </div>
             </div>
             <div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-3xl">
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   aria-label="Buscar en inventario"
                   placeholder="Buscar por producto, SKU o codigo..."
-                  className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm font-medium outline-none transition placeholder:text-muted-foreground/80 focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
               <button
                 type="button"
                 onClick={openNewProductForm}
-                className={claseBotonPrimario("h-11 shrink-0 gap-2 px-5 text-sm font-semibold shadow-lg shadow-primary/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25")}
+                className={claseBotonPrimario("h-11 shrink-0 gap-2 px-5 text-sm hover:-translate-y-0.5")}
               >
                 <Plus className="h-4 w-4" />
                 Nuevo Producto
@@ -1155,7 +1159,7 @@ export default function DashboardView() {
               <button
                 type="button"
                 onClick={() => openStockEntryForm()}
-                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-5 text-sm font-semibold text-primary transition hover:-translate-y-0.5 hover:bg-primary/15"
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-5 text-sm font-semibold text-blue-600 transition hover:-translate-y-0.5 hover:bg-blue-100"
               >
                 <PackagePlus className="h-4 w-4" />
                 Agregar Stock
@@ -1173,13 +1177,13 @@ export default function DashboardView() {
           return (
             <article
               key={metric.label}
-              className={claseTarjeta("p-4 transition hover:-translate-y-0.5 hover:shadow-xl")}
+              className={claseTarjeta("p-4 transition hover:-translate-y-0.5 hover:shadow-md")}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{metric.label}</p>
-                  <p className={`mt-2 break-words font-bold text-foreground ${metric.valueClassName}`}>{metric.value}</p>
-                  <p className="mt-1 text-xs font-medium text-muted-foreground">{metric.detail}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{metric.label}</p>
+                  <p className={`mt-2 break-words font-bold text-slate-950 ${metric.valueClassName}`}>{metric.value}</p>
+                  <p className="mt-1 text-xs font-medium text-slate-500">{metric.detail}</p>
                 </div>
                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ring-1 ${metric.tone}`}>
                   <Icon className="h-5 w-5" />
@@ -1190,32 +1194,32 @@ export default function DashboardView() {
         })}
       </section>
 
-      <section className={claseTarjeta("overflow-hidden")}>
-        <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
+      <section className={claseTarjeta()}>
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div>
-            <h3 className="text-base font-bold text-foreground">Tabla de inventario</h3>
-            <p className="text-xs font-medium text-muted-foreground">Producto, stock y alertas como prioridad visual.</p>
+            <h3 className="text-base font-semibold text-blue-700">Tabla de inventario</h3>
+            <p className="text-xs font-medium text-slate-500">Producto, stock y alertas como prioridad visual.</p>
           </div>
-          <span className="rounded-lg bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+          <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
             {filteredProducts.length} visibles
           </span>
         </div>
 
         {filteredProducts.length === 0 ? (
-          <div className="m-3 flex flex-col gap-3 rounded-lg border border-dashed border-border bg-muted/25 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="m-3 flex flex-col gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                 <Boxes className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-foreground">Inventario sin productos</h3>
-                <p className="text-xs font-medium text-muted-foreground">Agrega el primer SKU para iniciar operaciones.</p>
+                <h3 className="text-sm font-bold text-slate-900">Inventario sin productos</h3>
+                <p className="text-xs font-medium text-slate-500">Agrega el primer SKU para iniciar operaciones.</p>
               </div>
             </div>
             <button
               type="button"
               onClick={openNewProductForm}
-              className={claseBotonPrimario("h-10 shrink-0 gap-2 px-4 text-sm font-semibold")}
+              className={claseBotonPrimario("h-10 shrink-0 gap-2 px-4 text-sm")}
             >
               <Plus className="h-4 w-4" />
               Nuevo Producto
@@ -1223,7 +1227,7 @@ export default function DashboardView() {
             <button
               type="button"
               onClick={() => openStockEntryForm()}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-600 transition hover:bg-blue-100"
             >
               <PackagePlus className="h-4 w-4" />
               Agregar Stock
@@ -1232,17 +1236,17 @@ export default function DashboardView() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] border-collapse text-left">
-              <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="sticky left-0 z-10 w-[360px] bg-muted/95 px-4 py-3 font-bold backdrop-blur">Producto / variante</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-bold">Stock</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-bold">Estado</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-bold">Alerta</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-bold">Detalles</th>
-                  <th className="sticky right-0 z-10 bg-muted/95 px-4 py-3 text-right font-bold backdrop-blur">Acciones</th>
+                  <th className="sticky left-0 z-10 w-[360px] bg-slate-50 px-4 py-3 font-semibold">Producto / variante</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-semibold">Stock</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-semibold">Estado</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-semibold">Alerta</th>
+                  <th className="whitespace-nowrap px-4 py-3 font-semibold">Detalles</th>
+                  <th className="sticky right-0 z-10 bg-slate-50 px-4 py-3 text-right font-semibold">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/70">
+              <tbody className="divide-y divide-slate-100">
                 {filteredProducts.map((product) => {
                   const status = getStatus(product);
                   const stockAlert = getStockAlert(product, status);
@@ -1251,41 +1255,41 @@ export default function DashboardView() {
                   const variantCount = getVariantCount(product, products);
 
                   return (
-                    <tr key={product.id} className="group bg-card transition hover:bg-primary/[0.035]">
-                      <td className="sticky left-0 z-10 bg-card px-4 py-3 transition group-hover:bg-[#f6fbf5] dark:group-hover:bg-muted">
+                    <tr key={product.id} className="group bg-white transition hover:bg-slate-50">
+                      <td className="sticky left-0 z-10 bg-white px-4 py-3 transition group-hover:bg-slate-50">
                         <div className="flex items-center gap-3">
                           {product.imageUrl ? (
                             <img
                               src={product.imageUrl}
                               alt={product.name}
-                              className="h-10 w-10 rounded-lg object-cover ring-1 ring-border"
+                              className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200"
                             />
                           ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 ring-1 ring-blue-200/50">
                               <ImagePlus className="h-5 w-5" />
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-foreground">{productLine}</p>
+                            <p className="truncate text-sm font-bold text-slate-900">{productLine}</p>
                             <div className="mt-1 flex flex-wrap gap-1.5">
-                              <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary ring-1 ring-primary/20">
+                              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600 ring-1 ring-blue-200/60">
                                 {presentation}
                               </span>
                               {variantCount > 1 && (
-                                <span className="rounded-lg bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border">
+                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200">
                                   {formatVariantCount(variantCount)}
                                 </span>
                               )}
                             </div>
-                            <p className="truncate text-xs font-medium text-muted-foreground">
+                            <p className="truncate text-xs font-medium text-slate-500">
                               {product.id} · {product.barcode || "Sin código"}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
-                        <p className="text-base font-bold text-foreground">{formatStockQuantity(product)}</p>
-                        <p className="text-xs font-medium text-muted-foreground">
+                        <p className="text-base font-bold text-slate-900">{formatStockQuantity(product)}</p>
+                        <p className="text-xs font-medium text-slate-500">
                           Min. {getMinimumStock(product.stockUnit)} {formatUnitLabel(product.stockUnit)}
                         </p>
                       </td>
@@ -1295,16 +1299,16 @@ export default function DashboardView() {
                           {status}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-muted-foreground">
+                      <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-500">
                         {stockAlert}
                       </td>
                       <td className="px-4 py-3">
                         <details className="group/details">
-                          <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/50 hover:text-foreground">
+                          <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-300 hover:text-slate-700">
                             Ver datos
                             <ChevronDown className="h-3.5 w-3.5 transition group-open/details:rotate-180" />
                           </summary>
-                          <div className="mt-2 grid min-w-56 gap-1 rounded-lg border border-border bg-background p-3 text-xs font-medium text-muted-foreground shadow-lg">
+                          <div className="mt-2 grid min-w-56 gap-1 rounded-lg border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600 shadow-lg">
                             <span>Producto base: {productLine}</span>
                             <span>Presentacion: {presentation}</span>
                             <span>Nombre comercial: {product.name}</span>
@@ -1316,12 +1320,12 @@ export default function DashboardView() {
                           </div>
                         </details>
                       </td>
-                      <td className="sticky right-0 z-10 bg-card px-4 py-3 transition group-hover:bg-[#f6fbf5] dark:group-hover:bg-muted">
+                      <td className="sticky right-0 z-10 bg-white px-4 py-3 transition group-hover:bg-slate-50">
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => openStockEntryForm(product)}
-                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
+                            className="inline-flex h-9 items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-100"
                           >
                             <PackagePlus className="h-4 w-4" />
                             Stock
@@ -1329,7 +1333,7 @@ export default function DashboardView() {
                           <button
                             type="button"
                             onClick={() => handleEditProduct(product)}
-                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground transition hover:border-primary/50 hover:bg-primary/5"
+                            className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50"
                           >
                             <Pencil className="h-4 w-4" />
                             Editar
@@ -1337,7 +1341,7 @@ export default function DashboardView() {
                           <button
                             type="button"
                             onClick={() => handleDeleteProduct(product.id)}
-                            className="inline-flex h-9 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 text-destructive transition hover:bg-destructive/15"
+                            className="inline-flex h-9 items-center justify-center rounded-md border border-rose-200 bg-rose-50 px-2.5 text-rose-500 transition hover:bg-rose-100"
                             aria-label={`Eliminar ${product.name}`}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1357,12 +1361,12 @@ export default function DashboardView() {
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/55 p-3 sm:p-6">
           <form
             onSubmit={handleAddStock}
-            className="my-auto flex w-full max-w-3xl flex-col rounded-lg bg-card shadow-2xl"
+            className="my-auto flex w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl"
           >
-            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">Agregar Stock</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-lg font-semibold text-slate-950">Agregar Stock</h3>
+                <p className="text-sm text-slate-500">
                   Escanea o escribe codigo de barras, SKU o ID del producto.
                 </p>
               </div>
@@ -1370,7 +1374,7 @@ export default function DashboardView() {
                 type="button"
                 onClick={closeStockEntryForm}
                 aria-label="Cerrar entrada de inventario"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1378,7 +1382,7 @@ export default function DashboardView() {
 
             <div className="grid gap-4 p-5">
               {stockSuccessMessage && (
-                <div className="flex items-center gap-2 rounded-lg border border-success/25 bg-success/10 px-3 py-2 text-sm font-semibold text-success">
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
                   <CheckCircle2 className="h-4 w-4" />
                   {stockSuccessMessage}
                 </div>
@@ -1387,7 +1391,7 @@ export default function DashboardView() {
               <label className={formLabelClassName}>
                 <span>Buscar producto</span>
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     ref={stockSearchInputRef}
                     value={stockSearchTerm}
@@ -1398,20 +1402,20 @@ export default function DashboardView() {
                     }}
                     onKeyDown={handleStockSearchKeyDown}
                     placeholder="7501055300001, SKU o PROD-000001"
-                    className="h-12 w-full rounded-lg border border-input bg-background pl-10 pr-3 font-mono text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                    className="h-12 w-full rounded-md border border-slate-200 bg-white pl-10 pr-3 font-mono text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
               </label>
 
               {stockSearchTerm.trim() && !selectedStockProduct && (
-                <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
+                <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
                   Producto no encontrado. Verifica el codigo, SKU o ID.
                 </div>
               )}
 
               {selectedStockProduct && (
                 <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
-                  <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                     {selectedStockProduct.imageUrl ? (
                       <img
                         src={selectedStockProduct.imageUrl}
@@ -1419,14 +1423,14 @@ export default function DashboardView() {
                         className="h-44 w-full object-cover lg:h-full"
                       />
                     ) : (
-                      <div className="flex h-44 w-full items-center justify-center text-primary lg:h-full">
+                      <div className="flex h-44 w-full items-center justify-center text-blue-400 lg:h-full">
                         <ImagePlus className="h-10 w-10" />
                       </div>
                     )}
                   </div>
 
                   <div className="grid gap-3">
-                    <div className="flex items-center gap-2 rounded-lg border border-success/25 bg-success/10 px-3 py-2 text-sm font-bold text-success">
+                    <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
                       <CheckCircle2 className="h-4 w-4" />
                       Producto encontrado
                     </div>
@@ -1439,11 +1443,11 @@ export default function DashboardView() {
                         { label: "Precio", value: formatCurrency(selectedStockProduct.salePrice) },
                         { label: "Stock actual", value: formatStockQuantity(selectedStockProduct) },
                       ].map((item) => (
-                        <div key={item.label} className="rounded-lg border border-border bg-muted/25 px-3 py-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             {item.label}
                           </p>
-                          <p className="mt-1 break-words text-sm font-bold text-foreground">{item.value}</p>
+                          <p className="mt-1 break-words text-sm font-bold text-slate-900">{item.value}</p>
                         </div>
                       ))}
                     </div>
@@ -1459,26 +1463,26 @@ export default function DashboardView() {
                         value={stockQuantity}
                         onChange={(event) => setStockQuantity(event.target.value)}
                         placeholder="0"
-                        className="h-12 w-full rounded-lg border border-input bg-background px-3 text-lg font-bold outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                        className="h-12 w-full rounded-md border border-slate-200 bg-white px-3 text-lg font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       />
                     </label>
 
-                    <div className="grid gap-2 rounded-lg border border-border bg-background p-3 text-sm">
+                    <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-muted-foreground">Stock actual</span>
-                        <span className="font-bold text-foreground">
+                        <span className="font-medium text-slate-500">Stock actual</span>
+                        <span className="font-bold text-slate-900">
                           {currentStockQuantity} {formatUnitLabel(selectedStockProduct.stockUnit)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-muted-foreground">Cantidad recibida</span>
-                        <span className="font-bold text-foreground">
+                        <span className="font-medium text-slate-500">Cantidad recibida</span>
+                        <span className="font-bold text-slate-900">
                           {stockQuantityNumber} {formatUnitLabel(selectedStockProduct.stockUnit)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
-                        <span className="font-bold text-foreground">Nuevo stock</span>
-                        <span className="text-lg font-bold text-success">
+                      <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+                        <span className="font-bold text-slate-900">Nuevo stock</span>
+                        <span className="text-lg font-bold text-emerald-600">
                           {newStockQuantity} {formatUnitLabel(selectedStockProduct.stockUnit)}
                         </span>
                       </div>
@@ -1488,11 +1492,11 @@ export default function DashboardView() {
               )}
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-border p-5">
+            <div className="flex justify-end gap-3 border-t border-slate-200 p-5">
               <button
                 type="button"
                 onClick={closeStockEntryForm}
-                className="h-10 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition hover:bg-muted"
+                className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Cancelar
               </button>
@@ -1513,14 +1517,14 @@ export default function DashboardView() {
         <div className="fixed inset-0 z-50 flex justify-end bg-black/55">
           <form
             onSubmit={handleCreateProduct}
-            className="flex h-full w-full max-w-2xl flex-col bg-card shadow-2xl"
+            className="flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">
+                <h3 className="text-lg font-semibold text-slate-950">
                   {editingProductId ? "Editar producto" : "Nuevo producto"}
                 </h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-slate-500">
                   {editingProductId ? "Actualiza la variante del producto." : "Captura una presentación con su stock inicial."}
                 </p>
               </div>
@@ -1528,18 +1532,18 @@ export default function DashboardView() {
                 type="button"
                 onClick={resetProductForm}
                 aria-label="Cerrar formulario"
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
-              <section className="rounded-lg border border-border bg-muted/20 p-4">
+              <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-foreground">Información general</h4>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Sugerido: <span className="font-mono text-foreground">{nextProductId}</span>
+                  <h4 className="text-sm font-semibold text-slate-800">Información general</h4>
+                  <span className="text-xs font-medium text-slate-500">
+                    Sugerido: <span className="font-mono text-slate-800">{nextProductId}</span>
                   </span>
                 </div>
                 <div className="grid gap-4">
@@ -1555,7 +1559,7 @@ export default function DashboardView() {
                         className={`h-10 ${getFieldClassName(Boolean(productFormErrors.productLine))}`}
                       />
                       {productFormErrors.productLine && (
-                        <p className="text-xs font-semibold text-destructive">{productFormErrors.productLine}</p>
+                        <p className="text-xs font-semibold text-rose-600">{productFormErrors.productLine}</p>
                       )}
                     </label>
 
@@ -1570,7 +1574,7 @@ export default function DashboardView() {
                         className={`h-10 ${getFieldClassName(Boolean(productFormErrors.presentation))}`}
                       />
                       {productFormErrors.presentation && (
-                        <p className="text-xs font-semibold text-destructive">{productFormErrors.presentation}</p>
+                        <p className="text-xs font-semibold text-rose-600">{productFormErrors.presentation}</p>
                       )}
                     </label>
                   </div>
@@ -1586,7 +1590,7 @@ export default function DashboardView() {
                       className={`h-10 ${getFieldClassName(Boolean(productFormErrors.name))}`}
                     />
                     {productFormErrors.name && (
-                      <p className="text-xs font-semibold text-destructive">{productFormErrors.name}</p>
+                      <p className="text-xs font-semibold text-rose-600">{productFormErrors.name}</p>
                     )}
                   </label>
 
@@ -1603,11 +1607,11 @@ export default function DashboardView() {
                     />
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       {productFormErrors.barcode ? (
-                        <p className="font-semibold text-destructive">{productFormErrors.barcode}</p>
+                        <p className="font-semibold text-rose-600">{productFormErrors.barcode}</p>
                       ) : productForm.barcode && hasValidBarcodeLength ? (
-                        <p className="font-semibold text-success">Código de barras válido.</p>
+                        <p className="font-semibold text-emerald-600">Código de barras válido.</p>
                       ) : (
-                        <p className="font-medium text-muted-foreground">Solo números, de 8 a 20 dígitos.</p>
+                        <p className="font-medium text-slate-500">Solo números, de 8 a 20 dígitos.</p>
                       )}
                     </div>
                   </label>
@@ -1623,9 +1627,9 @@ export default function DashboardView() {
                       className={`h-10 font-mono ${getFieldClassName(Boolean(productFormErrors.id))}`}
                     />
                     {productFormErrors.id ? (
-                      <p className="text-xs font-semibold text-destructive">{productFormErrors.id}</p>
+                      <p className="text-xs font-semibold text-rose-600">{productFormErrors.id}</p>
                     ) : (
-                      <p className="text-xs font-medium text-muted-foreground">
+                      <p className="text-xs font-medium text-slate-500">
                         Sugerido: {nextProductId}
                       </p>
                     )}
@@ -1648,7 +1652,7 @@ export default function DashboardView() {
                         ))}
                       </select>
                       {productFormErrors.category && (
-                        <p className="text-xs font-semibold leading-5 text-destructive">{productFormErrors.category}</p>
+                        <p className="text-xs font-semibold leading-5 text-rose-600">{productFormErrors.category}</p>
                       )}
                     </label>
 
@@ -1671,7 +1675,7 @@ export default function DashboardView() {
                         ))}
                       </select>
                       {productFormErrors.subcategory && (
-                        <p className="text-xs font-semibold leading-5 text-destructive">{productFormErrors.subcategory}</p>
+                        <p className="text-xs font-semibold leading-5 text-rose-600">{productFormErrors.subcategory}</p>
                       )}
                     </label>
 
@@ -1684,26 +1688,26 @@ export default function DashboardView() {
                         onChange={(brand) => updateProductForm("brand", brand)}
                       />
                       {selectedBrandManufacturer && (
-                        <p className="text-xs font-medium leading-5 text-muted-foreground">
+                        <p className="text-xs font-medium leading-5 text-slate-500">
                           Corporativo asociado: {selectedBrandManufacturer}
                         </p>
                       )}
                       {productFormErrors.brand && (
-                        <p className="text-xs font-semibold leading-5 text-destructive">{productFormErrors.brand}</p>
+                        <p className="text-xs font-semibold leading-5 text-rose-600">{productFormErrors.brand}</p>
                       )}
                     </label>
                   </div>
 
                   {productFormServerError && (
-                    <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">
+                    <div className="rounded-lg border border-rose-300/50 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
                       {productFormServerError}
                     </div>
                   )}
                 </div>
               </section>
 
-              <section className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
-                <h4 className="mb-3 text-sm font-semibold text-foreground">Precios</h4>
+              <section className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                <h4 className="mb-3 text-sm font-semibold text-slate-800">Precios</h4>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className={formLabelClassName}>
                     <span>Precio de compra</span>
@@ -1735,10 +1739,10 @@ export default function DashboardView() {
                 </div>
               </section>
 
-              <section className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
+              <section className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-foreground">Stock</h4>
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <h4 className="text-sm font-semibold text-slate-800">Stock</h4>
+                  <span className="text-xs font-medium text-slate-500">
                     Mínimo: {getMinimumStock(productForm.stockUnit)} {formatUnitLabel(productForm.stockUnit)}
                   </span>
                 </div>
@@ -1825,13 +1829,13 @@ export default function DashboardView() {
                 </div>
               </section>
 
-              <div className="mt-4 space-y-1.5 text-sm font-medium text-foreground">
+              <div className="mt-4 space-y-1.5 text-sm font-medium text-slate-800">
                   <span>Imagen</span>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => uploadInputRef.current?.click()}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted"
+                      className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-blue-300 hover:bg-slate-50"
                     >
                       <FolderUp className="h-4 w-4" />
                       Subir
@@ -1846,17 +1850,17 @@ export default function DashboardView() {
                   />
               </div>
 
-              <div className="mt-5 rounded-lg border border-border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
+              <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
                 Usa TAB para avanzar y ENTER en el codigo de barras para sugerir datos. Guardar y continuar
                 mantiene producto base, categoria, subcategoria, marca y unidad para capturar otra presentacion.
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-border p-5">
+            <div className="flex justify-end gap-3 border-t border-slate-200 p-5">
               <button
                 type="button"
                 onClick={resetProductForm}
-                className="h-10 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition hover:bg-muted"
+                className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Cancelar
               </button>
@@ -1866,7 +1870,7 @@ export default function DashboardView() {
                   name="productAction"
                   value="continue"
                   disabled={hasProductFormErrors}
-                  className="inline-flex h-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:pointer-events-none disabled:opacity-50"
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-600 transition hover:bg-blue-100 disabled:pointer-events-none disabled:opacity-50"
                 >
                   Guardar y continuar
                 </button>
