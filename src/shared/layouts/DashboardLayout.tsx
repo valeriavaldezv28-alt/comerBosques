@@ -1,11 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
+import { ROUTE_PATHS } from "@/config/routePaths";
 import { AppFooter } from "./AppFooter";
 import { BarraLateral } from "./Sidebar";
 import { BarraSuperior } from "./Topbar";
 
 export const DashboardLayout = ({ children }: { children?: ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const location = useLocation();
+  const isProductNewView = location.pathname === ROUTE_PATHS.dashboardProductsNew;
 
   useEffect(() => {
     const handleResize = () => {
@@ -23,15 +26,17 @@ export const DashboardLayout = ({ children }: { children?: ReactNode }) => {
   const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className={`flex min-h-screen w-full ${isProductNewView ? "bg-[#f6f8fb]" : "bg-background"}`}>
       <BarraLateral mode="desktop" />
       <BarraLateral mode="mobile" isOpen={isSidebarOpen} onClose={closeSidebar} onNavigate={closeSidebar} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <BarraSuperior isSidebarOpen={isSidebarOpen} onMenuClick={toggleSidebar} />
 
-        <main className="flex-1 space-y-4 p-3 sm:p-4 lg:p-5">{children ?? <Outlet />}</main>
-        <AppFooter className="px-4 pb-4 lg:px-5" />
+        <main className={isProductNewView ? "flex-1" : "flex-1 space-y-4 p-3 sm:p-4 lg:p-5"}>
+          {children ?? <Outlet />}
+        </main>
+        {!isProductNewView && <AppFooter className="px-4 pb-4 lg:px-5" />}
       </div>
     </div>
   );

@@ -34,12 +34,21 @@ import {
   fetchProducts,
   updateProduct as apiUpdateProduct,
 } from "@/features/comercializadora/productsApi";
+import {
+  formatVariantCount,
+  getProductLine,
+  getProductPresentation,
+  getVariantCount,
+  getVariantSearchText,
+} from "@/features/comercializadora/productVariants";
 import { claseBotonPrimario, claseTarjeta, claseTarjetaSuave } from "@/shared/ui/estilosDashboard";
 
 type CatalogProduct = {
   id: string;
   barcode: string;
   name: string;
+  productLine?: string;
+  presentation?: string;
   category: string;
   brand: string;
   stockUnit?: StockUnit;
@@ -112,6 +121,8 @@ const fallbackProducts: CatalogProduct[] = [
     id: "DEMO-001",
     barcode: "7501023501128",
     name: "Aceite vegetal 1 L",
+    productLine: "Aceite vegetal",
+    presentation: "1 L",
     category: "Aceites",
     brand: "Nutrioli",
     salePrice: 38.9,
@@ -123,6 +134,8 @@ const fallbackProducts: CatalogProduct[] = [
     id: "DEMO-002",
     barcode: "7501055300072",
     name: "Refresco cola 600 ml",
+    productLine: "Refresco cola",
+    presentation: "600 ml",
     category: "Bebidas",
     brand: "Coca-Cola",
     salePrice: 18,
@@ -134,6 +147,8 @@ const fallbackProducts: CatalogProduct[] = [
     id: "DEMO-003",
     barcode: "7501035910017",
     name: "Limpiador multiusos 1 L",
+    productLine: "Limpiador multiusos",
+    presentation: "1 L",
     category: cleaningAndHomeLabel,
     brand: "Fabuloso",
     salePrice: 31,
@@ -240,11 +255,6 @@ const getStockIndicator = (available: number) => {
     className: "bg-success/10 text-success ring-success/25",
     dotClassName: "bg-success",
   };
-};
-
-const getProductPresentation = (product: CatalogProduct) => {
-  const match = product.name.match(/\b\d+(?:[.,]\d+)?\s?(?:ml|l|kg|g|pz|pzas|piezas)\b/i);
-  return match?.[0] ?? "Presentacion comercial";
 };
 
 const getSaleUnit = (product: CatalogProduct) => {
@@ -355,6 +365,8 @@ const getCategoryOptions = (products: CatalogProduct[]) => {
 
 const normalizeCatalogProduct = (product: CatalogProduct): CatalogProduct => {
   const stockUnit = product.stockUnit ?? "piezas";
+  const productLine = getProductLine(product);
+  const presentation = getProductPresentation(product);
   const piecesPerBox = product.piecesPerBox ?? 0;
   const boxes = product.boxes ?? (stockUnit === "cajas" ? product.stockTotal : 0);
   const kilos = product.kilos ?? (stockUnit === "kilos" ? product.stockTotal : 0);
@@ -364,6 +376,8 @@ const normalizeCatalogProduct = (product: CatalogProduct): CatalogProduct => {
 
   return {
     ...product,
+    productLine,
+    presentation,
     category: product.category === "Limpieza" ? cleaningAndHomeLabel : product.category,
     stockUnit,
     boxes,
@@ -543,10 +557,7 @@ export default function ClienteView() {
     return purchasableProducts.filter((product) => {
       const matchesSearch =
         !normalizedSearch ||
-        [product.name, product.brand, product.category, product.barcode, product.id]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedSearch);
+        getVariantSearchText(product).toLowerCase().includes(normalizedSearch);
       const matchesCategory = selectedCategory === allCategoriesLabel || product.category === selectedCategory;
       const matchesBrand = selectedBrand === "Todas las marcas" || product.brand === selectedBrand;
       const matchesAvailability =
@@ -567,12 +578,7 @@ export default function ClienteView() {
     }
 
     return products
-      .filter((product) =>
-        [product.name, product.brand, product.category, product.barcode, product.id]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedSearch),
-      )
+      .filter((product) => getVariantSearchText(product).toLowerCase().includes(normalizedSearch))
       .slice(0, 5);
   }, [products, searchTerm]);
 
@@ -962,8 +968,10 @@ export default function ClienteView() {
                         onClick={() => setSearchTerm(product.name)}
                         className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-muted"
                       >
-                        <span className="min-w-0 truncate font-medium text-foreground">{product.name}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">{product.brand || product.category}</span>
+                        <span className="min-w-0 truncate font-medium text-foreground">{getProductLine(product)}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {getProductPresentation(product)}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1021,6 +1029,9 @@ export default function ClienteView() {
               const purchaseOptions = getPurchaseOptions(product);
               const defaultPurchaseUnit = getDefaultPurchaseUnit(product);
               const defaultUnitPrice = getUnitPrice(product, defaultPurchaseUnit);
+              const productLine = getProductLine(product);
+              const presentation = getProductPresentation(product);
+              const variantCount = getVariantCount(product, products);
 
               return (
                 <article
@@ -1057,14 +1068,24 @@ export default function ClienteView() {
                     <button type="button" onClick={() => setQuickViewProduct(product)} className="mt-2 text-left">
                       <p className="text-xs font-medium text-muted-foreground">{product.category}</p>
                       <h3 className="mt-1 line-clamp-2 min-h-12 text-lg font-bold leading-6 text-foreground">
-                        {product.name}
+                        {productLine}
                       </h3>
                     </button>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary ring-1 ring-primary/20">
+                        {presentation}
+                      </span>
+                      {variantCount > 1 && (
+                        <span className="rounded-lg bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border">
+                          {formatVariantCount(variantCount)}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                       <p>SKU: {product.barcode || product.id}</p>
                       <p>Marca: {product.brand || "Sin marca"}</p>
                       <p>
-                        {getProductPresentation(product)} | Venta: {getSaleUnit(product)}
+                        {presentation} | Venta: {getSaleUnit(product)}
                       </p>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2">
@@ -1575,10 +1596,11 @@ export default function ClienteView() {
                     {getStockIndicator(quickViewProduct.available).label}
                   </span>
                 </div>
-                <h3 className="mt-3 text-2xl font-semibold text-foreground">{quickViewProduct.name}</h3>
+                <h3 className="mt-3 text-2xl font-semibold text-foreground">{getProductLine(quickViewProduct)}</h3>
                 <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
                   <p>Marca: {quickViewProduct.brand || "Sin marca"}</p>
                   <p>SKU: {quickViewProduct.barcode || quickViewProduct.id}</p>
+                  <p className="sm:col-span-2">Nombre comercial: {quickViewProduct.name}</p>
                   <p>Existencia: {quickViewProduct.available}</p>
                   <p>Unidad: {getSaleUnit(quickViewProduct)}</p>
                   <p className="sm:col-span-2">Presentacion: {getProductPresentation(quickViewProduct)}</p>

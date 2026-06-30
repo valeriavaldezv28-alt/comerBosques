@@ -5,7 +5,9 @@ import Index from "../pages/Index";
 import { PROTECTED_ROUTE_PATHS, ROUTE_PATHS } from "./routePaths";
 
 const Dashboard = lazy(() => import("../pages/Dashboard"));
+const ProductAdminNew = lazy(() => import("../pages/ProductAdminNew"));
 const CustomersAdmin = lazy(() => import("../pages/CustomersAdmin"));
+const AdminSection = lazy(() => import("../pages/AdminSection"));
 const Cliente = lazy(() => import("../pages/Cliente"));
 const RegisterCustomer = lazy(() => import("../pages/RegisterCustomer"));
 const NotFound = lazy(() => import("../pages/NotFound"));
@@ -40,8 +42,16 @@ export const dashboardRoutes: RouteConfig[] = [
     element: withRouteSuspense(<Dashboard />),
   },
   {
+    path: PROTECTED_ROUTE_PATHS.dashboardProductsNew,
+    element: withRouteSuspense(<ProductAdminNew />),
+  },
+  {
     path: PROTECTED_ROUTE_PATHS.dashboardCustomers,
     element: withRouteSuspense(<CustomersAdmin />),
+  },
+  {
+    path: PROTECTED_ROUTE_PATHS.dashboardAdminSection,
+    element: withRouteSuspense(<AdminSection />),
   },
   {
     path: PROTECTED_ROUTE_PATHS.cliente,

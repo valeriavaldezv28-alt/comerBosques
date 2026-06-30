@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { ROUTE_PATHS } from "@/config/routePaths";
 import {
   AlertTriangle,
   Boxes,
@@ -45,6 +47,15 @@ import {
   validateProductIdentity,
   type ProductValidationErrors,
 } from "@/features/comercializadora/productValidation";
+import {
+  buildVariantName,
+  formatVariantCount,
+  getProductLine,
+  getProductPresentation,
+  getVariantCount,
+  getVariantGroupKey,
+  getVariantSearchText,
+} from "@/features/comercializadora/productVariants";
 import { claseBotonPrimario, claseTarjeta } from "@/shared/ui/estilosDashboard";
 
 type InventoryStatus = "agotado" | "poca disponibilidad" | "disponible";
@@ -55,6 +66,8 @@ type InventoryProduct = {
   id: string;
   barcode: string;
   name: string;
+  productLine: string;
+  presentation: string;
   category: string;
   subcategory: string;
   brand: string;
@@ -109,6 +122,8 @@ const emptyProductForm: ProductForm = {
   id: "",
   barcode: "",
   name: "",
+  productLine: "",
+  presentation: "",
   category: "",
   subcategory: "",
   brand: "",
@@ -131,6 +146,8 @@ const emptyProductForm: ProductForm = {
 const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
   "7501023501128": {
     name: "Aceite vegetal 1 L",
+    productLine: "Aceite vegetal",
+    presentation: "1 L",
     category: "Pastas, arroz y básicos",
     subcategory: "Aceites",
     brand: "Precissimo",
@@ -142,6 +159,8 @@ const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
   },
   "7501055300072": {
     name: "Refresco cola 600 ml",
+    productLine: "Refresco cola",
+    presentation: "600 ml",
     category: "Bebidas",
     subcategory: "Refrescos",
     brand: "Coca-Cola",
@@ -153,6 +172,8 @@ const barcodeSuggestions: Record<string, Partial<ProductForm>> = {
   },
   "7501035910017": {
     name: "Limpiador multiusos 1 L",
+    productLine: "Limpiador multiusos",
+    presentation: "1 L",
     category: "Limpieza del hogar",
     subcategory: "Limpiadores",
     brand: "Fabuloso",
@@ -402,6 +423,8 @@ const normalizeProduct = (product: InventoryProduct & { unit?: string; price?: n
   const stockTotal = product.stockTotal ?? 0;
   const category = normalizeProductCategory(product.category);
   const brand = product.brand || "Sin marca";
+  const productLine = getProductLine(product);
+  const presentation = getProductPresentation(product);
   const categorySubcategories = getSubcategoriesByCategoryName(category);
   const subcategory = categorySubcategories.some((item) => item.name === product.subcategory)
     ? product.subcategory
@@ -421,6 +444,9 @@ const normalizeProduct = (product: InventoryProduct & { unit?: string; price?: n
     ...product,
     id: normalizeProductId(product.id),
     barcode: normalizeBarcode(product.barcode),
+    name: product.name || buildVariantName(productLine, presentation),
+    productLine,
+    presentation,
     category,
     subcategory,
     brand,
@@ -491,6 +517,7 @@ const loadInventoryMovements = (): InventoryMovement[] => {
 };
 
 export default function DashboardView() {
+  const navigate = useNavigate();
   const [catalogs, setCatalogs] = useState<InventoryCatalogs>(loadStoredCatalogs);
   const [products, setProducts] = useState<InventoryProduct[]>(loadStoredProducts);
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>(loadInventoryMovements);
@@ -505,6 +532,8 @@ export default function DashboardView() {
   const [stockQuantity, setStockQuantity] = useState("");
   const [stockSuccessMessage, setStockSuccessMessage] = useState("");
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const productLineInputRef = useRef<HTMLInputElement>(null);
+  const presentationInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const idInputRef = useRef<HTMLInputElement>(null);
   const stockSearchInputRef = useRef<HTMLInputElement>(null);
@@ -584,7 +613,7 @@ export default function DashboardView() {
       ...currentForm,
       id: editingProductId ? currentForm.id : currentForm.id || nextProductId,
     }));
-    window.setTimeout(() => nameInputRef.current?.focus(), 0);
+    window.setTimeout(() => productLineInputRef.current?.focus(), 0);
   }, [editingProductId, isProductFormOpen, nextProductId]);
 
   const selectedStockProduct = useMemo(() => {
@@ -619,12 +648,7 @@ export default function DashboardView() {
       return products;
     }
 
-    return products.filter((product) =>
-      [product.id, product.barcode, product.name, product.brand]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedSearch),
-    );
+    return products.filter((product) => getVariantSearchText(product).toLowerCase().includes(normalizedSearch));
   }, [products, searchTerm]);
 
   const availableProducts = products.filter((product) => getStatus(product) === "disponible").length;
@@ -634,6 +658,7 @@ export default function DashboardView() {
     const stockForPrice = product.tipoPrecio === "caja" ? product.boxes : getSellableStock(product);
     return total + stockForPrice * (product.purchasePrice || product.salePrice);
   }, 0);
+  const productFamilyCount = new Set(products.map(getVariantGroupKey)).size;
   const stockQuantityNumber = Number(stockQuantity) || 0;
   const currentStockQuantity = selectedStockProduct ? getStockQuantity(selectedStockProduct) : 0;
   const newStockQuantity = currentStockQuantity + stockQuantityNumber;
@@ -651,6 +676,26 @@ export default function DashboardView() {
             : value,
       ...(field === "brand" ? { manufacturer: getManufacturerNameForBrand(value, catalogs) } : {}),
     }));
+  };
+
+  const updateVariantField = (field: "productLine" | "presentation", value: string) => {
+    setProductFormServerError("");
+    setProductForm((currentForm) => {
+      const previousSuggestedName = buildVariantName(currentForm.productLine, currentForm.presentation);
+      const nextForm = {
+        ...currentForm,
+        [field]: value,
+      };
+      const nextSuggestedName = buildVariantName(nextForm.productLine, nextForm.presentation);
+
+      return {
+        ...nextForm,
+        name:
+          !currentForm.name.trim() || currentForm.name === previousSuggestedName
+            ? nextSuggestedName
+            : currentForm.name,
+      };
+    });
   };
 
   const updateProductCategory = (category: string) => {
@@ -698,6 +743,8 @@ export default function DashboardView() {
     setProductForm((currentForm) => ({
       ...currentForm,
       name: suggestion.name ?? currentForm.name,
+      productLine: suggestion.productLine ?? currentForm.productLine,
+      presentation: suggestion.presentation ?? currentForm.presentation,
       category: suggestion.category ?? currentForm.category,
       subcategory: suggestion.subcategory ?? (suggestion.category ? "" : currentForm.subcategory),
       brand: suggestion.brand ?? currentForm.brand,
@@ -755,6 +802,9 @@ export default function DashboardView() {
     setProductForm({
       ...emptyProductForm,
       id: nextId,
+      productLine: productForm.productLine,
+      category: productForm.category,
+      subcategory: productForm.subcategory,
       brand: productForm.brand,
       manufacturer: productForm.manufacturer,
       stockUnit: productForm.stockUnit,
@@ -767,18 +817,11 @@ export default function DashboardView() {
       salePrice: 0,
       tipoPrecio: getPriceTypeForUnit(productForm.stockUnit),
     });
-    window.setTimeout(() => nameInputRef.current?.focus(), 0);
+    window.setTimeout(() => presentationInputRef.current?.focus(), 0);
   };
 
   const openNewProductForm = () => {
-    setEditingProductId(null);
-    setProductFormErrors({});
-    setProductFormServerError("");
-    setProductForm({
-      ...emptyProductForm,
-      id: nextProductId,
-    });
-    setIsProductFormOpen(true);
+    navigate(ROUTE_PATHS.dashboardProductsNew);
   };
 
   const openStockEntryForm = (product?: InventoryProduct) => {
@@ -819,6 +862,8 @@ export default function DashboardView() {
       id: product.id,
       barcode: product.barcode,
       name: product.name,
+      productLine: getProductLine(product),
+      presentation: getProductPresentation(product),
       category: product.category,
       subcategory: product.subcategory,
       brand: product.brand,
@@ -952,6 +997,9 @@ export default function DashboardView() {
         ...productForm,
         id: normalizeProductId(productForm.id),
         barcode: normalizeBarcode(productForm.barcode),
+        name: productForm.name || buildVariantName(productForm.productLine, productForm.presentation),
+        productLine: getProductLine(productForm),
+        presentation: getProductPresentation(productForm),
         manufacturer: productForm.manufacturer || getManufacturerNameForBrand(productForm.brand, catalogs),
         minStock: getMinimumStock(productForm.stockUnit),
         stockTotal,
@@ -993,6 +1041,9 @@ export default function DashboardView() {
       ...productForm,
       id: createdProductId,
       barcode: normalizeBarcode(productForm.barcode),
+      name: productForm.name || buildVariantName(productForm.productLine, productForm.presentation),
+      productLine: getProductLine(productForm),
+      presentation: getProductPresentation(productForm),
       manufacturer: productForm.manufacturer || getManufacturerNameForBrand(productForm.brand, catalogs),
       minStock: getMinimumStock(productForm.stockUnit),
       stockTotal,
@@ -1029,9 +1080,9 @@ export default function DashboardView() {
 
   const metrics = [
     {
-      label: "Total productos",
+      label: "Total variantes",
       value: String(products.length),
-      detail: "SKUs activos",
+      detail: `${productFamilyCount} productos base`,
       icon: Layers3,
       tone: "text-primary bg-primary/10 ring-primary/15",
       valueClassName: "text-3xl",
@@ -1183,7 +1234,7 @@ export default function DashboardView() {
             <table className="w-full min-w-[900px] border-collapse text-left">
               <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="sticky left-0 z-10 w-[360px] bg-muted/95 px-4 py-3 font-bold backdrop-blur">Producto</th>
+                  <th className="sticky left-0 z-10 w-[360px] bg-muted/95 px-4 py-3 font-bold backdrop-blur">Producto / variante</th>
                   <th className="whitespace-nowrap px-4 py-3 font-bold">Stock</th>
                   <th className="whitespace-nowrap px-4 py-3 font-bold">Estado</th>
                   <th className="whitespace-nowrap px-4 py-3 font-bold">Alerta</th>
@@ -1195,6 +1246,9 @@ export default function DashboardView() {
                 {filteredProducts.map((product) => {
                   const status = getStatus(product);
                   const stockAlert = getStockAlert(product, status);
+                  const productLine = getProductLine(product);
+                  const presentation = getProductPresentation(product);
+                  const variantCount = getVariantCount(product, products);
 
                   return (
                     <tr key={product.id} className="group bg-card transition hover:bg-primary/[0.035]">
@@ -1212,7 +1266,17 @@ export default function DashboardView() {
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-foreground">{product.name}</p>
+                            <p className="truncate text-sm font-bold text-foreground">{productLine}</p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary ring-1 ring-primary/20">
+                                {presentation}
+                              </span>
+                              {variantCount > 1 && (
+                                <span className="rounded-lg bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border">
+                                  {formatVariantCount(variantCount)}
+                                </span>
+                              )}
+                            </div>
                             <p className="truncate text-xs font-medium text-muted-foreground">
                               {product.id} · {product.barcode || "Sin código"}
                             </p>
@@ -1241,6 +1305,9 @@ export default function DashboardView() {
                             <ChevronDown className="h-3.5 w-3.5 transition group-open/details:rotate-180" />
                           </summary>
                           <div className="mt-2 grid min-w-56 gap-1 rounded-lg border border-border bg-background p-3 text-xs font-medium text-muted-foreground shadow-lg">
+                            <span>Producto base: {productLine}</span>
+                            <span>Presentacion: {presentation}</span>
+                            <span>Nombre comercial: {product.name}</span>
                             <span>Codigo: {product.barcode}</span>
                             <span>ID: {product.id}</span>
                             <span>
@@ -1454,7 +1521,7 @@ export default function DashboardView() {
                   {editingProductId ? "Editar producto" : "Nuevo producto"}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {editingProductId ? "Actualiza la información del producto." : "Captura el stock inicial."}
+                  {editingProductId ? "Actualiza la variante del producto." : "Captura una presentación con su stock inicial."}
                 </p>
               </div>
               <button
@@ -1476,8 +1543,40 @@ export default function DashboardView() {
                   </span>
                 </div>
                 <div className="grid gap-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className={formLabelClassName}>
+                      <span>Producto base *</span>
+                      <input
+                        ref={productLineInputRef}
+                        required
+                        value={productForm.productLine}
+                        onChange={(event) => updateVariantField("productLine", event.target.value)}
+                        placeholder="Coca-Cola, Fanta, Ciel"
+                        className={`h-10 ${getFieldClassName(Boolean(productFormErrors.productLine))}`}
+                      />
+                      {productFormErrors.productLine && (
+                        <p className="text-xs font-semibold text-destructive">{productFormErrors.productLine}</p>
+                      )}
+                    </label>
+
+                    <label className={formLabelClassName}>
+                      <span>Presentacion *</span>
+                      <input
+                        ref={presentationInputRef}
+                        required
+                        value={productForm.presentation}
+                        onChange={(event) => updateVariantField("presentation", event.target.value)}
+                        placeholder="600 ml, 1.5 L, 3 L"
+                        className={`h-10 ${getFieldClassName(Boolean(productFormErrors.presentation))}`}
+                      />
+                      {productFormErrors.presentation && (
+                        <p className="text-xs font-semibold text-destructive">{productFormErrors.presentation}</p>
+                      )}
+                    </label>
+                  </div>
+
                   <label className={formLabelClassName}>
-                    <span>Nombre del producto *</span>
+                    <span>Nombre comercial *</span>
                     <input
                       ref={nameInputRef}
                       required
@@ -1749,7 +1848,7 @@ export default function DashboardView() {
 
               <div className="mt-5 rounded-lg border border-border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
                 Usa TAB para avanzar y ENTER en el codigo de barras para sugerir datos. Guardar y continuar
-                mantiene categoria, marca y unidad.
+                mantiene producto base, categoria, subcategoria, marca y unidad para capturar otra presentacion.
               </div>
             </div>
 

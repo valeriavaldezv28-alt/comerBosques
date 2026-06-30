@@ -5,6 +5,8 @@ export type ProductIdentity = {
 };
 
 export type ProductValidationInput = ProductIdentity & {
+  productLine?: string;
+  presentation?: string;
   category: string;
   brand: string;
   manufacturer?: string;
@@ -74,6 +76,14 @@ export const validateProductIdentity = <T extends ProductIdentity>(
 
   if (!product.name.trim()) {
     errors.name = "El nombre del producto es obligatorio.";
+  }
+
+  if (!product.productLine?.trim()) {
+    errors.productLine = "Indica el producto base, por ejemplo Coca-Cola.";
+  }
+
+  if (!product.presentation?.trim()) {
+    errors.presentation = "Indica la presentacion, por ejemplo 600 ml, 1.5 L o 3 L.";
   }
 
   if (!product.category.trim()) {

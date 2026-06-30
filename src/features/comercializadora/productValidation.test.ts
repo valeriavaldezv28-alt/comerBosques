@@ -35,6 +35,8 @@ describe("productValidation", () => {
         id: "PROD-000001",
         barcode: "7501055300072",
         name: "Coca-Cola 600ml",
+        productLine: "Coca-Cola",
+        presentation: "600 ml",
         category: "Bebidas",
         subcategory: "Refrescos",
         brand: "Coca-Cola",
@@ -52,6 +54,8 @@ describe("productValidation", () => {
         id: "PROD-000003",
         barcode: "1234567890",
         name: "Producto nuevo",
+        productLine: "Producto nuevo",
+        presentation: "1 pieza",
         category: "",
         subcategory: "",
         brand: "",
@@ -62,5 +66,24 @@ describe("productValidation", () => {
     expect(errors.category).toBe("Selecciona una categoría.");
     expect(errors.subcategory).toBe("Selecciona una subcategoría.");
     expect(errors.brand).toBe("Selecciona una marca.");
+  });
+
+  it("requires product line and presentation for variants", () => {
+    const errors = validateProductIdentity(
+      {
+        id: "PROD-000003",
+        barcode: "1234567890",
+        name: "Producto nuevo",
+        productLine: "",
+        presentation: "",
+        category: "Bebidas",
+        subcategory: "Refrescos",
+        brand: "Coca-Cola",
+      },
+      products,
+    );
+
+    expect(errors.productLine).toBe("Indica el producto base, por ejemplo Coca-Cola.");
+    expect(errors.presentation).toBe("Indica la presentacion, por ejemplo 600 ml, 1.5 L o 3 L.");
   });
 });

@@ -12,8 +12,8 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --configLoader runner",
+    "test:watch": "vitest --configLoader runner"
   },
   "dependencies": {
     "@openai/codex": "^0.130.0",

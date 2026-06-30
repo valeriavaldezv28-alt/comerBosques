@@ -90,3 +90,51 @@ Tabla para almacenar los clientes registrados desde el formulario publico o desd
   ]
 }
 ```
+
+# Tabla Inventario
+
+## Nombre sugerido
+
+`Inventario`
+
+## Descripcion
+
+Tabla para almacenar los productos del inventario, incluyendo su identificación, clasificación comercial, precios, unidad de stock, cantidades disponibles y movimientos recientes, permitiendo controlar la disponibilidad de mercancía para venta y administración interna.
+
+Cada registro representa un SKU/presentacion con codigo de barras, precio y stock propios, pero puede pertenecer a un mismo producto base. Ejemplo: producto base `Coca-Cola` con variantes `600 ml`, `1.5 L` y `3 L`.
+## Campos
+
+| Campo | Descripcion | Longitud | Tipo de dato |
+| --- | --- | --- | --- |
+| `producto` | Informacion principal mostrada en la tabla: producto base, presentacion, nombre comercial, ID/SKU, codigo de barras e imagen. | 255 | `Object` |
+| `productLine` | Producto base o familia comercial. Ejemplo: `Coca-Cola`. | 120 | `String` |
+| `presentation` | Variante o presentacion vendible. Ejemplo: `600 ml`, `1.5 L`, `3 L`. | 80 | `String` |
+| `stock` | Existencia actual del producto y minimo requerido. Ejemplo: `10 cajas (240 piezas)`, `Min. 5 cajas`. | 80 | `String` |
+| `estado` | Estado calculado segun disponibilidad. Valores: `disponible`, `poca disponibilidad`, `agotado`. | 30 | `String` |
+| `alerta` | Mensaje de alerta segun el stock. Ejemplo: `Stock suficiente` o `Alerta: 5 cajas o menos`. | 120 | `String` |
+| `detalles` | Datos adicionales visibles al abrir "Ver datos": codigo, ID y precio. | 255 | `Object` |
+| `acciones` | Acciones disponibles en la tabla: agregar stock, editar o eliminar producto. | 120 | `Array` |
+
+## JSON de ejemplo
+
+```json
+{
+  "producto": {
+    "productLine": "Coca-Cola",
+    "presentation": "600 ml",
+    "nombre": "Coca-Cola 600 ml",
+    "id": "PROD-000001",
+    "codigo": "7501055300072",
+    "imagenUrl": ""
+  },
+  "stock": "10 cajas (240 piezas)",
+  "estado": "disponible",
+  "alerta": "Stock suficiente",
+  "detalles": {
+    "codigo": "7501055300072",
+    "id": "PROD-000001",
+    "precio": "$18.00 por pieza"
+  },
+  "acciones": ["Agregar stock", "Editar", "Eliminar"]
+}
+```
